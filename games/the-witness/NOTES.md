@@ -49,6 +49,63 @@ Camera: tracked entering the world (see second probe); smooth walking deltas not
 
 Save-folder finding: the game keeps saves in `%APPDATA%\The Witness`, whatever folder the exe runs from, so a "test copy" does not isolate saves. Starting a New Game rewrote the latest existing `.witness_campaign` (and its png) there and added new files; the launch also rewrote `Launcher.variables`. Steam Cloud (`steam_autocloud.vdf`) may sync such changes (not checked). Back the folder up before any test launch; the owner chose not to restore here. Lesson for the playbook: check where a game writes saves before launching a copy.
 
+## Entity census and puppet candidates (2026-10-22, read-only, build 11370412)
+
+Launch note: the exe opens a graphics/video options dialog first, and nothing loads until it is confirmed. The command-line flag `-skip_config_dialog` (found in the exe strings, with `-windowed`, `-new_game`, `-no_hud`, `-non_interactive`, `-command`, `-width`, `-height`) skips it; launching `witness64_d3d11.exe -skip_config_dialog -windowed` reached the world with no user input. `powershell.exe` hung from this WSL setup, while Windows Python `subprocess.Popen` launched it fine.
+
+The game's own classes carry no RTTI (only third-party library classes do), so entity types are told apart by the vtable pointer at the start of each entity (an address inside the exe's `.rdata`, `0x5156A8` to `0x521678` from the module base). Observed in the live world: 49,422 non-null entities of 48 types. Largest types: `0x518320` (26,675), `0x5156a8` (5,505), `0x516c88` (4,890), `0x51f2c8` (3,119), `0x517ed8` (2,067).
+
+- Panels are type `0x518ca8` (594 instances). Entities `0x64`, `0x65` and `0x182` are all this type. (`0x65` is a panel too, about 180 m away from the start; the earlier "wrong panel" correction was about which one was at the player's feet.)
+- A singleton of type `0x518090`, id `0x1e465`, sits at x,y equal to the camera's and z = 1.8, while the camera z is 3.51: 1.71 above it, i.e. an eye height over feet. Derived, not proven: this is the player entity. It would be the natural entity to read for the local player's position.
+- Neighbouring entities of type `0x5183d0` (39 instances, ids from `0x1e467`) sit within a few metres of the player. Unknown what they are.
+
+Not known: which of the 48 types draw a mesh, and whether moving an entity's `+0x24` position moves its rendering (the render transform may live elsewhere). That is the next experiment, and it needs a write to the test copy.
+
+### Does moving an entity's position field move what is drawn? (2026-10-22)
+
+Test on the live copy (the only writes made to the game so far; each restored and read back): wrote entity z (`+0x2C`) +3.0 m, held 10 to 24 s, then restored the original. Observed: the write took and stayed for the whole hold (the game did not overwrite it), the restore read back exactly the original. Entity `0x182` (panel at the player's feet, likely out of frame): owner saw nothing. Entity `0x64` (panel, about 8 m away): a screenshot taken during the displacement looks identical to the one before (same panel at the same pixels in the doorway ahead). Not proven: that the glowing panel in the screenshot is `0x64`.
+
+Screenshot method that needs no installs: Windows Python `ctypes` (find the window with `EnumWindows`, `BitBlt` from the screen DC, write the PNG with `zlib`). Works on this windowed copy.
+
+Derived: panel entities' `+0x24` position is gameplay data, not what places the mesh (the level geometry is likely baked or placed through another transform). So "reuse an existing panel as the puppet by writing its position" does not work. Other types were not tried (48 exist).
+
+Imports of `witness64_d3d11.exe` that are plain files next to it, so they can be replaced with a proxy DLL without installing anything: `AnselSDK64.dll`, `amd_ags_x64.dll`, `openvr_api.dll`, `bink2w64.dll`, `steam_api64.dll`. It also imports `D3D11CreateDevice` (d3d11.dll) and `CreateDXGIFactory` / `CreateDXGIFactory1` (dxgi.dll), so a D3D11 overlay is possible by loading from a proxy and hooking `IDXGISwapChain::Present`. A MinGW-w64 C++ compiler is installed here; an overlay would also need the camera's view/projection (camera position and angles are known; field of view is not yet read).
+
+## Proxy DLL: first code running inside the game (2026-10-22)
+
+Result: a proxy for `AnselSDK64.dll` (MinGW-w64, 9 exports) loads into `witness64_d3d11.exe` in the test copy and logs from inside the process. Verified by: its log line (`proxy loaded: pid=... host=...witness64_d3d11.exe`), the log line `real Ansel DLL loaded` (the game called an Ansel export, so the stubs are exercised), memory climbing to 1.7 GB, and a screenshot of the normal rendered world. The original DLL is kept in the copy as `AnselSDK64_real.dll` (SHA-256 starts `3b0677ae1e01fc17`). The real install was not touched.
+
+What went wrong first (useful to the next agent):
+- Export forwarders in the `.def` file (`updateCamera = AnselSDK64_real.updateCamera`) made the loader report "AnselSDK64_real.dll was not found" although the file sat next to the exe. Fixed by making each export a naked stub that calls `LoadLibraryW` on the full path on first use and tail-jumps to the real function.
+- That loader error is a Windows "System Error" box owned by `csrss.exe`, not by the game: the game process showed no window, 0 CPU and about 5.8 MB, which looked like a hang. The box stays on screen after the process is killed and shows up in later screenshots. Find it by enumerating top-level windows titled `<exe> - System Error` and close it with `WM_CLOSE`.
+- Do no I/O in `DllMain` (loader lock): logging to a `\\wsl.localhost` path runs on a thread started from `DllMain`.
+- A full-desktop screenshot (pid 0 in my capture script) is the quick way to see such boxes.
+
+Imports of the exe from `AnselSDK64.dll` were not listed by my first `objdump` filter; all 9 exports are stubbed. Per-frame use of `updateCamera` is derived from the name, not observed.
+
+## Overlay: drawing inside the game's frame (2026-10-22)
+
+Result: from the proxy DLL, a hook on `IDXGISwapChain::Present` draws screen-space markers at world positions, and they land on the right objects. Screenshot evidence: a magenta square on the golden panel in the doorway ahead (entity `0x293`) and one on the stone column (entity `0xc335`), both within a few pixels of where the model predicts (`0x293`: predicted (1055, 689) of 2405x1353, observed on the panel).
+
+How (source in `local/the-witness-mod/`, not published yet):
+- Hook: create a dummy D3D11 device and swap chain in the proxy, read `Present` from its vtable (index 8) and overwrite that slot (`VirtualProtect`), since swap chains of the same implementation share the vtable. The game's `Present` then calls our function, which draws and calls the original. The game ran normally afterwards (log: `Present hook called`, resources created, backbuffer 2405x1353, format 28 = `R8G8B8A8_UNORM_SRGB`).
+- Drawing: runtime-compiled HLSL (`d3dcompiler_47.dll` via `LoadLibrary`), one instanced quad draw with a constant buffer of rectangles, depth and blend off.
+- Camera model (read in-process from module base + `0x6304C0` position, `0x6303EC` angles): `forward = (cos(phi)cos(theta), cos(phi)sin(theta), sin(phi))`, `right = (sin(theta), -cos(theta), 0)`, `up = (-sin(phi)cos(theta), -sin(phi)sin(theta), cos(phi))`, z up. Field of view: vertical 60 degrees fits (about 89 degrees horizontal at 16:9); calibrated from two points in one frame, so treat as +-2 degrees.
+
+Not verified yet: this was calibrated on the title-screen camera (pitch exactly 0). The same addresses followed the player earlier, but the projection has not been checked while walking in the world. `updateCamera` (Ansel) was never called in about 100 s of running, so it does not give a per-frame camera; the camera comes from game memory.
+
+Walking check (same day). Method: launch the copy with `-skip_config_dialog -windowed -new_game` (starts straight in the world), markers on the 16 nearest in-front panels from the randomizer's id list, keypress sent with `SendInput` (scancode `W`, 1.5 s) after bringing the window to the foreground, screenshots before and after. Observed: the camera went from (-201.4, -114.8, 3.73) to (-199.9, -119.5, 3.73) at heading theta = -1.257; the model's forward vector (cos, sin) = (0.306, -0.952) times 4.9 m gives (+1.5, -4.7), the observed delta. A marker sat on the glowing end of the start tunnel before and after the walk, and the far markers spread outward as expected. Two different headings (theta 0.225 on the title screen, -1.257 in the tunnel) both fit, so the angle convention is right in both. Not tested: turning in place with the mouse while watching markers (the math was checked at two headings only), a non-16:9 window, and fullscreen. The overlay has no depth test, so markers show through walls.
+
+## Two players on one PC: pose exchange and puppet (2026-10-22)
+
+Result: two copies of the game, each with the proxy DLL, exchange camera pose over UDP on localhost and each draws the other as a puppet through the `Present` overlay. Steam allowed two game processes of the same app from two folders at once.
+
+Setup: second install copy `local/witness-test-2` (3.9 GB, about 33 s to copy). Per-copy `witness_coop.cfg` (`id`, `listen`, `peer` ports 47001/47002). A thread in the proxy sends `{magic, id, seq, pos[3], angles[2]}` (36 bytes) at 30 Hz and keeps the latest packet from the peer. The overlay draws the remote player as a tall green rectangle from feet (eye minus 1.71 m) to head, plus a yellow dot 0.7 m ahead of the head along the remote heading. Both games were started with `-skip_config_dialog -windowed -new_game` and placed side by side with `SetWindowPos`.
+
+Observed, with a before/after test: A (id 1) was sent a `W` keypress for 1.6 s and walked about 5 m. A's camera read from its memory: (-199.819, -119.816, 3.727). B's log: `recv ... from id 1 ... pos (-199.82,-119.82,3.73)` and `overlay: remote id 1 age 31ms`. An earlier packet (`recv #600`) showed an intermediate position (-200.59, -117.45), so positions update during the walk. B's screenshot shows the green body ahead in the start tunnel at the expected size and place. A drew nothing for B (B is behind A, so the puppet is behind the camera).
+
+Not tested: more than two players, a real network (LAN or internet; localhost only), packet loss or reordering (no sequence check yet), the puppet while the remote player turns or jumps, a puppet that is occluded by walls (no depth test), or the puppet drawn while the local player has the panel-solving cursor up. The body is a flat rectangle, not a model. Pose is the camera (eye) position, so crouch or prone states are not separated.
+
 ## Derived (not tested)
 
 - Player position and panel/entity state are reachable from outside the process, and the community already finds them by signature scan, so a mod can be an external or injected process without source.
@@ -64,7 +121,7 @@ Save-folder finding: the game keeps saves in `%APPDATA%\The Witness`, whatever f
 
 - Engine family and whether it has any networking code.
 - Whether any script layer exists inside `data-pc.zip`.
-- How a puppet player can be drawn (no spawn API known; may need an injected renderer or an overlay).
+- How a puppet player can be drawn: moving a panel entity's position does not move it on screen; a D3D11 overlay from the proxy DLL works (see below); other entity types were not tried.
 - How panel solving is represented in memory and in saves (randomizer `Panels.h` lists entity ids; `POWER`/`TARGET` fields look relevant), and how saves are written.
 - Whether `witness64_d3d11.exe` has debug symbols or a known pdb.
 - Whether the GOG/Epic builds differ from the Steam build.

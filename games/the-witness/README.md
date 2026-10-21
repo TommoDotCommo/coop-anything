@@ -10,11 +10,11 @@
 
 ## Where things stand
 
-There is no co-op for The Witness, and no mod was found; this is research only, with no
-mod code yet. The groundwork is better than it looks: two MIT tools already attach to
-the running game from outside and read and write player and puzzle state, and on this
-Steam build the camera position, the entity table and the panel solved flag were read
-from a live copy. The open problem is showing a second player: nothing found draws one.
+There is no published co-op for The Witness, and no mod was found. A prototype now exists on
+one PC: two copies of the game exchange camera pose over local UDP, and each draws the other
+as a puppet through a Direct3D 11 overlay. Shared puzzle state is not done: the solved flag
+can be read, but there is no safe write path yet. Tested on one machine, localhost only, by
+hand plus a scripted walk test (see QA).
 
 ## Existing work
 
@@ -44,23 +44,35 @@ Observed on build 11370412 (details and sources in [NOTES.md](NOTES.md)):
 - Panel solved state: a float at entity `+0x294` (`1.0` when solved) and an int at `+0x298`
   ("ever solved"). Both flipped when one panel was solved; checked once, on one panel.
 
-Not known: how to draw a second player, how to safely write a solved panel and open its
-door or cable, how saves are written, and whether other store builds differ (the
-randomizer already knows two builds with different offsets).
+- A proxy `AnselSDK64.dll` (the exe loads it from its own folder) loads our code into the game.
+  It hooks `IDXGISwapChain::Present` by patching the shared swap-chain vtable and draws screen
+  quads at world positions. Camera model: z up, `forward = (cos(phi)cos(theta), cos(phi)sin(theta), sin(phi))`,
+  vertical field of view about 60 degrees; checked against screenshots at two headings and while walking.
+- Moving a panel entity's position field does not move it on screen, so a puppet cannot be an existing panel.
+- Launch flags `-skip_config_dialog -windowed -new_game` start the world with no input.
+
+Not known: how to safely write a solved panel and open its door or cable, how saves are
+written, and whether other store builds differ (the randomizer already knows two builds
+with different offsets).
 
 ## What we changed
 
-Nothing yet. This round was research and read-only probing; no game file was modified.
+Nothing in the game files; the real install was never modified. In a disposable copy we added a
+proxy DLL (pose exchange over UDP, puppet overlay). Its source is not published yet and will
+live in its own repo.
 
 ## QA
 
-No automated tests. Everything above was checked by hand on one machine: a read-only
-attach with `PROCESS_VM_READ` from Windows Python, before and after solving one panel.
-The probe scripts are not published yet.
+No automated suite yet, so QA level stays `none`. Checked on one machine (Windows, Steam build
+11370412): read-only memory probes before and after solving one panel; a scripted walk (a keypress
+sent to one copy) after which the other copy's log showed the first copy's position
+(-199.82, -119.82, 3.73) against its real camera (-199.819, -119.816, 3.727), 31 ms old, plus
+screenshots of the puppet. Not tested: a real network, packet loss, more than two players,
+fullscreen, non-16:9 windows. The probe and test scripts are not published yet.
 
 ## How to play
 
-Not playable together yet.
+Not playable together yet (prototype only, two copies on one PC).
 
 ## Known issues
 
@@ -70,7 +82,8 @@ latest existing save and settings file there. Back up and hash that folder first
 
 ## Next steps
 
-1. Decide how a second player is drawn (overlay, injected renderer, or reusing a game entity) with the reverse-engineering skill.
-2. Work out a safe write path for solved state, and sample the state field and traced-edge data (`+0x280`, `+0x228`).
-3. Read the Archipelago client for another view of the same hooks.
-4. Finish the unchecked searches, then build a bot that drives a panel solve and a state diff.
+1. Work out a safe write path for solved state (and sample the state and traced-edge fields, `+0x280` and `+0x228`) so one player's solve opens the other's door.
+2. Real networking (Steam relay or direct IP) with sequence numbers, then loss and lag runs.
+3. Occlusion and a real puppet model instead of a flat rectangle.
+4. A bot that drives a panel solve with a state diff, then raise the QA level honestly.
+5. Publish the mod in its own repo; read the Archipelago client for another view of the same hooks; finish the unchecked searches.
