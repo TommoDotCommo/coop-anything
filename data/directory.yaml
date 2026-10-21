@@ -7575,3 +7575,33 @@
   - 'Repo DIRECTORY.md and games; public GitHub issue/PR and repository search for Godfather 2 / Godfather II co-op and multiplayer, 2026-10-20'
   - 'English web searches: Godfather II co-op campaign, co-op mod, online co-op, multiplayer mod; checked Nexus, ModDB, GameBanana, GameFAQs results and PCGamingWiki, 2026-10-20'
   - 'Not checked: game Discord, Steam guides in depth, Archive.org; attempted Russian, German, Italian and Spanish queries were rate-limited (HTTP 429)'
+- game: The Witness
+  year: 2016
+  engine: In-house engine (Thekla); family not confirmed from the binary
+  project: (none found)
+  url: ''
+  other_urls: []
+  kind: gap
+  status: none
+  coop_scope: {}
+  players: unknown
+  networking: unknown
+  open_source: unknown
+  last_activity: unknown
+  qa: none
+  notes: No co-op or multiplayer mod found; the game is single-player. Groundwork exists for one. The MIT-licensed witness-randomizer and
+    witness-trainer attach to the running game from outside and read and write player position and puzzle-panel state by signature scan. On
+    Steam build 11370412 the camera position, the entity table and the panel solved flag were read from a running copy (see games/the-witness).
+    Drawing a second player is the open problem.
+  sources:
+  - https://github.com/jbzdarkid/witness-randomizer
+  - https://github.com/jbzdarkid/witness-trainer
+  - https://store.steampowered.com/app/210970/
+  - https://en.wikipedia.org/wiki/The_Witness_(2016_video_game)
+  checked: '2026-10-22'
+  made_with_coop_anything: true
+  searched:
+  - 'Repo DIRECTORY.md, games/, playbook, and public GitHub issues and PRs for The Witness (nothing), 2026-10-22'
+  - 'GitHub repository search via the API: the witness multiplayer, witness coop, the witness randomizer, TheWitnessExplorer, witness64_d3d11 (no co-op project), 2026-10-22'
+  - 'WebSearch (extended): The Witness Jonathan Blow multiplayer co-op mod; also randomizer / Archipelago client and engine queries (no co-op mod), 2026-10-22'
+  - 'Not checked: Nexus Mods, ModDB, Reddit, archive.org, Steam guides in depth, the game or speedrun Discords, non-English communities'
