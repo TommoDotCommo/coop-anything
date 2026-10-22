@@ -4,13 +4,13 @@
 |---|---|
 | Engine | In-house engine (Thekla). Family not confirmed: `detect_engine` matched no signature |
 | Versions tested | Steam build `11370412` (app `210970`), `witness64_d3d11.exe` SHA-256 `8d672d444df6a6df7130f25a517bdab1af92731fe2138dc5b324d519561d55a5`, Windows |
-| Projects | none published. Related tooling: [witness-randomizer](https://github.com/jbzdarkid/witness-randomizer) (MIT), [witness-trainer](https://github.com/jbzdarkid/witness-trainer) (MIT) |
-| QA level | none (a scripted scenario suite exists for one panel and door on one machine, see QA; the level stays `none` until it covers more and the mod is published) |
+| Projects | [witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, dev preview). Related tooling: [witness-randomizer](https://github.com/jbzdarkid/witness-randomizer) (MIT), [witness-trainer](https://github.com/jbzdarkid/witness-trainer) (MIT) |
+| QA level | automated (narrow: one puzzle, localhost, see QA) |
 | Last updated | 2026-10-24 |
 
 ## Where things stand
 
-There is no published co-op for The Witness, and no mod was found. A prototype runs on one PC with two copies of the game:
+No other co-op for The Witness was found. [witness-coop](https://github.com/TommoDotCommo/witness-coop) is a dev-preview prototype that runs on one PC with two copies of the game:
 each player sees the other as a puppet drawn through a Direct3D 11 overlay, and when one player solves a panel the other
 game marks it solved and the door it gates opens, started by the game's own door function. Panels and doors are synced
 for all 594 panels and 327 doors, but only the first puzzle (the door at the end of the start tunnel) has been played
@@ -58,11 +58,11 @@ differ (the randomizer already knows two builds with different offsets).
 Nothing in the game files; the real install was never modified. In disposable copies we added a proxy DLL with: pose exchange
 and puppet overlay, a detector for solved panels and opened doors, a reliable event layer (numbered, acknowledged, resent,
 applied once and in order, with epochs and a full resend when a peer restarts), and an applier on the render thread with an
-echo guard. Its source is not published yet and will live in its own repo.
+echo guard. The source is in [witness-coop](https://github.com/TommoDotCommo/witness-coop).
 
 ## QA
 
-A scripted suite (`suite.py`, kept locally) restarts both games, has a bot play player A with real keyboard and mouse input
+A scripted suite (`tools/qa.sh` in witness-coop) restarts both games, has a bot play player A with real keyboard and mouse input
 (walk 46 m, aim from the camera angles, enter the first panel, trace the line), and compares the solved panels and open doors
 read from both games' memory. Last run, one machine, localhost, build 11370412:
 
@@ -80,11 +80,11 @@ the puppet and of overlay markers on known panels.
 
 Not tested: a real network, random loss (only a deterministic "first send lost"), more than two players, a second puzzle or
 any other gate type, a late join into a game that already has progress (the full-state resend exists but was not exercised in
-the suite), loading a save, fullscreen, non-16:9 windows. The probe and test scripts are not published yet.
+the suite), loading a save, fullscreen, non-16:9 windows. The probes and test scripts are in witness-coop.
 
 ## How to play
 
-Not playable together yet (prototype only, two copies on one PC).
+Not playable together yet (prototype only, two copies on one PC). There is no installer or release; the dev setup is in the [witness-coop README](https://github.com/TommoDotCommo/witness-coop).
 
 ## Known issues
 
@@ -101,4 +101,4 @@ Not playable together yet (prototype only, two copies on one PC).
 2. Real networking (Steam relay or direct IP), then random loss and lag runs with the chaos tool.
 3. Late join and saves: exercise the full-state resend, define what happens when worlds differ.
 4. Occlusion and a real puppet model instead of a flat rectangle.
-5. Publish the mod in its own repo and raise the QA level honestly once the suite covers more puzzles; read the Archipelago client for another view of the same hooks; finish the unchecked searches.
+5. Widen the suite to more puzzles and gate types and keep the QA level honest; add an installer and a release; read the Archipelago client for another view of the same hooks; finish the unchecked searches.

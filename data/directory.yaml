@@ -7578,27 +7578,32 @@
 - game: The Witness
   year: 2016
   engine: In-house engine (Thekla); family not confirmed from the binary
-  project: (none found)
-  url: ''
+  project: witness-coop
+  url: https://github.com/TommoDotCommo/witness-coop
   other_urls: []
-  kind: gap
-  status: none
-  coop_scope: {}
-  players: unknown
-  networking: unknown
-  open_source: unknown
-  last_activity: unknown
-  qa: none
-  notes: No co-op or multiplayer mod found; the game is single-player. Groundwork exists for one. The MIT-licensed witness-randomizer and
-    witness-trainer attach to the running game from outside and read and write player position and puzzle-panel state by signature scan. On
-    Steam build 11370412 a prototype now runs on one PC, where a proxy DLL hooks the game's Direct3D 11 Present call, and two game copies exchange camera pose
-    over local UDP and draw each other as puppets. Solving a panel in one game marks it solved in the other and opens the gated door (game door function called, panels and doors synced, tested on the first puzzle only, see games/the-witness). Still to do are cables and powered panels, a real network, and more puzzles.
+  kind: mod
+  status: prototype
+  coop_scope:
+    players_visible: 'yes'
+    world_state: partial
+  players: 2 (two copies on one PC)
+  networking: direct-ip
+  open_source: 'yes'
+  last_activity: 2026-10
+  qa: automated
+  notes: Dev preview, not playable with friends yet (no installer or release; localhost only). A proxy AnselSDK64.dll loaded by the game hooks Direct3D 11 Present
+    and draws the other player as a puppet; two game copies exchange camera pose over UDP. Solving a panel in one game marks it solved in the other and opens
+    the gated door by calling the game's own door function (events are numbered, acknowledged and resent). Tested on the first puzzle only, Steam build 11370412.
+    Not synced yet are cables, panels powered by other panels, plates, lasers and bridges. QA is a bot driving real input with a state diff over all panels and doors
+    and four scenarios (baseline, lost first send, two mutants that must fail), all passing; narrow coverage, one puzzle (see games/the-witness). No other co-op work
+    was found; the MIT-licensed witness-randomizer and witness-trainer, which read and write the running game, were the starting point.
   sources:
+  - https://github.com/TommoDotCommo/witness-coop
   - https://github.com/jbzdarkid/witness-randomizer
   - https://github.com/jbzdarkid/witness-trainer
   - https://store.steampowered.com/app/210970/
   - https://en.wikipedia.org/wiki/The_Witness_(2016_video_game)
-  checked: '2026-10-22'
+  checked: '2026-10-24'
   made_with_coop_anything: true
   searched:
   - 'Repo DIRECTORY.md, games/, playbook, and public GitHub issues and PRs for The Witness (nothing), 2026-10-22'

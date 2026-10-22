@@ -35,7 +35,7 @@ Derived, not run: this Steam build matches a layout the randomizer already suppo
 
 ### Runtime probe (2026-10-22, first attach)
 
-Read-only attach (`PROCESS_VM_READ`, Windows Python 3.11 + ctypes, no writes) to the copy at `local/witness-test`, module base `0x140000000`, game at its menu/start. Observed: camera position and angles read as sane floats; the entity array pointer resolved; entity `0x64` (Tutorial Straight) and `0x1B`, `0x1C` returned plausible positions (z 3.7 to 6.7) and `power` = `1.0, 1.0`. Not yet checked: that the camera values follow the player when moving, and that `power`/solved state changes when a panel is solved.
+Read-only attach (`PROCESS_VM_READ`, Windows Python 3.11 + ctypes, no writes) to a disposable copy of the install, module base `0x140000000`, game at its menu/start. Observed: camera position and angles read as sane floats; the entity array pointer resolved; entity `0x64` (Tutorial Straight) and `0x1B`, `0x1C` returned plausible positions (z 3.7 to 6.7) and `power` = `1.0, 1.0`. Not yet checked: that the camera values follow the player when moving, and that `power`/solved state changes when a panel is solved.
 
 Side effect: launching the copy rewrote `Launcher.variables` in the real `%APPDATA%\The Witness` (a launcher settings file, not a save). The save folder was backed up first (14 files, hashes identical) to `local/saves-backup/`.
 
@@ -87,7 +87,7 @@ Imports of the exe from `AnselSDK64.dll` were not listed by my first `objdump` f
 
 Result: from the proxy DLL, a hook on `IDXGISwapChain::Present` draws screen-space markers at world positions, and they land on the right objects. Screenshot evidence: a magenta square on the golden panel in the doorway ahead (entity `0x293`) and one on the stone column (entity `0xc335`), both within a few pixels of where the model predicts (`0x293`: predicted (1055, 689) of 2405x1353, observed on the panel).
 
-How (source in `local/the-witness-mod/`, not published yet):
+How (source in [witness-coop](https://github.com/TommoDotCommo/witness-coop), `proxy/overlay.cpp`):
 - Hook: create a dummy D3D11 device and swap chain in the proxy, read `Present` from its vtable (index 8) and overwrite that slot (`VirtualProtect`), since swap chains of the same implementation share the vtable. The game's `Present` then calls our function, which draws and calls the original. The game ran normally afterwards (log: `Present hook called`, resources created, backbuffer 2405x1353, format 28 = `R8G8B8A8_UNORM_SRGB`).
 - Drawing: runtime-compiled HLSL (`d3dcompiler_47.dll` via `LoadLibrary`), one instanced quad draw with a constant buffer of rectangles, depth and blend off.
 - Camera model (read in-process from module base + `0x6304C0` position, `0x6303EC` angles): `forward = (cos(phi)cos(theta), cos(phi)sin(theta), sin(phi))`, `right = (sin(theta), -cos(theta), 0)`, `up = (-sin(phi)cos(theta), -sin(phi)sin(theta), cos(phi))`, z up. Field of view: vertical 60 degrees fits (about 89 degrees horizontal at 16:9); calibrated from two points in one frame, so treat as +-2 degrees.
@@ -100,7 +100,7 @@ Walking check (same day). Method: launch the copy with `-skip_config_dialog -win
 
 Result: two copies of the game, each with the proxy DLL, exchange camera pose over UDP on localhost and each draws the other as a puppet through the `Present` overlay. Steam allowed two game processes of the same app from two folders at once.
 
-Setup: second install copy `local/witness-test-2` (3.9 GB, about 33 s to copy). Per-copy `witness_coop.cfg` (`id`, `listen`, `peer` ports 47001/47002). A thread in the proxy sends `{magic, id, seq, pos[3], angles[2]}` (36 bytes) at 30 Hz and keeps the latest packet from the peer. The overlay draws the remote player as a tall green rectangle from feet (eye minus 1.71 m) to head, plus a yellow dot 0.7 m ahead of the head along the remote heading. Both games were started with `-skip_config_dialog -windowed -new_game` and placed side by side with `SetWindowPos`.
+Setup: a second install copy (3.9 GB, about 33 s to copy). Per-copy `witness_coop.cfg` (`id`, `listen`, `peer` ports 47001/47002). A thread in the proxy sends `{magic, id, seq, pos[3], angles[2]}` (36 bytes) at 30 Hz and keeps the latest packet from the peer. The overlay draws the remote player as a tall green rectangle from feet (eye minus 1.71 m) to head, plus a yellow dot 0.7 m ahead of the head along the remote heading. Both games were started with `-skip_config_dialog -windowed -new_game` and placed side by side with `SetWindowPos`.
 
 Observed, with a before/after test: A (id 1) was sent a `W` keypress for 1.6 s and walked about 5 m. A's camera read from its memory: (-199.819, -119.816, 3.727). B's log: `recv ... from id 1 ... pos (-199.82,-119.82,3.73)` and `overlay: remote id 1 age 31ms`. An earlier packet (`recv #600`) showed an intermediate position (-200.59, -117.45), so positions update during the walk. B's screenshot shows the green body ahead in the start tunnel at the expected size and place. A drew nothing for B (B is behind A, so the puppet is behind the camera).
 
@@ -125,7 +125,7 @@ Writing exactly those 11 words into the other game (all writes succeeded) change
 
 A door is "open" when its power word at `+0x1D0` equals `1.0` (10 doors read as open by default in a fresh game, identical in both games, plus `0x34EDA` after the call).
 
-### Implementation (in the proxy DLL; source not published yet)
+### Implementation (in the proxy DLL, [witness-coop](https://github.com/TommoDotCommo/witness-coop) `proxy/`)
 
 - Detector thread (10 Hz): every `Machine_Panel` solved (`+0x294 == 1.0` and `+0x298 == 1`) and every `Door` open (`+0x1D0 == 1.0`) is compared with its last known value; a change becomes an event.
 - Transport: events are numbered per stream epoch, acknowledged cumulatively, resent every 150 ms until acknowledged, applied once and in order, duplicates dropped. A peer restart (new session id in its pose packets) starts a new epoch and a full resend of every solved panel and open door; applying is idempotent.
@@ -140,6 +140,16 @@ A door is "open" when its power word at `+0x1D0` equals `1.0` (10 doors read as 
 ### Test
 
 A bot (Windows Python, `SendInput`) plays player A: walks 46 m to the first panel (3 s key presses with a distance check), aims by feedback from the camera angles (0.00255 rad per mouse count horizontally, 0.00237 vertically), clicks to enter the puzzle, moves the cursor onto the start circle (0.218 m left of the panel centre, 3.6 mouse counts per pixel in puzzle mode), presses, drags to the end and clicks to finish. First run, no flags: A logged `local panel 0x64 solved -> event` and `local door 0x34eda opened -> event` (11 events sent in total, 11 acknowledged); B logged `remote panel 0x64 applied as solved` and `remote door 0x34eda opened (call ok)` and emitted nothing back; a state diff over all 594 panels and 327 doors read from both games' memory was identical (1 solved panel, the same 10 open doors).
+
+## The mod repository (2026-10-24)
+
+The prototype now lives in its own public repo, [TommoDotCommo/witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, `main`), laid out like mdk2-coop: `proxy/` (C++ source and Makefile), `tools/` (install, restart, bot, state diff, scenario suite, Windows probes), `README.md`, `CLAUDE.md`, `AGENTS.md`. No game files and no third-party data: the debug markers that used the randomizer's panel-id list were removed from the overlay (they were only for calibration), and the detector finds panels and doors by type from the live entity table. The two install copies moved into that repo's ignored `local/`. `tools/install.sh` refuses any exe whose SHA-256 is not the supported build and any `AnselSDK64.dll` that is not the original.
+
+Re-run from the new repo (all four scenarios, same results as before the move): baseline PASS, lost first send PASS (A resent 11), MUTANT no resend diverged as required, MUTANT echo guard off echoed 2 events as required.
+
+A bug the move turned up: in the first baseline run from the new repo, player B logged `state: local door 0x338d5 opened -> event` with nobody having solved anything. `0x338d5` is one of the 10 doors that are open by default; it was powered a few seconds after the counts-only "world stable" gate had passed. Evidence: the log was kept (`evidence_late_door_B.log`, local). Fix: the gate also needs an identical set of solved panels and open doors on three scans, and changes in the first 15 s after the gate are folded into the baseline instead of sent. It happened once in about nine starts and did not recur in the final run, so the fix is in place but not shown to trigger. Lesson added to `playbook/methods.md`.
+
+QA level: the suite meets the repo's definition of `automated` (a scripted harness that drives real game clients and checks shared state, with mutants), so the directory entry is set to `automated`. Its coverage is narrow (one puzzle, localhost), which the entry notes and the write-up say.
 
 ## Derived (not tested)
 
