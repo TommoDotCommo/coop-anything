@@ -79,9 +79,15 @@ Earlier checks: read-only memory probes before and after a solve; a scripted wal
 first game's position (-199.82, -119.82, 3.73) against its real camera (-199.819, -119.816, 3.727), 31 ms old; screenshots of
 the puppet and of overlay markers on known panels.
 
-Not tested: a real network, random loss (only a deterministic "first send lost"), more than two players, a second puzzle or
-any other gate type, a late join into a game that already has progress (the full-state resend exists but was not exercised in
-the suite), loading a save, fullscreen, non-16:9 windows. The probes and test scripts are in witness-coop.
+Additional targeted run (2026-10-22, witness-coop `df7b276`): peer restart catch-up and its disabled-resend mutant both PASS.
+The original first-panel solve reaches both games and is acknowledged before B is restarted with a fresh world. Surviving A
+retains its PID and state; fresh B recovers all progress (one panel, ten doors) without echo. With catch-up disabled, B is
+missing exactly panel `0x64` and door `0x34eda`. Real saves, cursor and frame-cap checks pass. This exercises a full-state
+resend after the original deltas were already acknowledged.
+
+Not tested: a real network, more than two players, a second puzzle or any other gate type, a first-time late join into a game
+that already has progress, same-process world replacement or loading a save, fullscreen, non-16:9 windows.
+The probes and test scripts are in witness-coop.
 
 ## How to play
 
@@ -91,7 +97,7 @@ Not playable together yet (prototype only, two copies on one PC). There is no in
 
 - Only panels and doors are synced. A panel that depends on another panel's power, cables, plates and lasers stay as in single-player.
 - The puppet is a flat rectangle with a facing dot; it shows through walls (no depth test).
-- Both players need the same world. Starting a new game on one side while the other has progress is not handled.
+- Replacing a world in the same process (loading a save or starting a new game) remains unhandled. Restarting one process into a fresh new game now has an automated catch-up check, limited to the first puzzle.
 - Test hazard for the next agent: the game keeps saves in `%APPDATA%\The Witness` whatever
   folder the exe runs from. Starting a New Game from a copied install rewrote the owner's
   latest existing save and settings file there. Back up and hash that folder first.
@@ -100,6 +106,6 @@ Not playable together yet (prototype only, two copies on one PC). There is no in
 
 1. Sync what a solve powers besides doors: cables and panels powered by panels (find the call, as for doors), plates, lasers, bridges. Check each with a natural solve and a state diff.
 2. Real networking (Steam relay or direct IP), then random loss and lag runs with the chaos tool.
-3. Late join and saves: exercise the full-state resend, define what happens when worlds differ.
+3. First-time late join and saves: extend the verified peer-restart catch-up to same-process world replacement and define what happens when worlds differ.
 4. Occlusion and a real puppet model instead of a flat rectangle.
 5. Widen the suite to more puzzles and gate types and keep the QA level honest; add an installer and a release; read the Archipelago client for another view of the same hooks; finish the unchecked searches.
