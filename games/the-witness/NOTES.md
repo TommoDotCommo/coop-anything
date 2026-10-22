@@ -106,7 +106,7 @@ Observed, with a before/after test: A (id 1) was sent a `W` keypress for 1.6 s a
 
 Not tested: more than two players, a real network (LAN or internet; localhost only), packet loss or reordering (no sequence check yet), the puppet while the remote player turns or jumps, a puppet that is occluded by walls (no depth test), or the puppet drawn while the local player has the panel-solving cursor up. The body is a flat rectangle, not a model. Pose is the camera (eye) position, so crouch or prone states are not separated.
 
-## Shared panel and door state (2026-10-22 to 10-24)
+## Shared panel and door state (2026-10-22)
 
 Goal: when one player solves a panel, the other player's game shows it solved and the gated door opens. Design follows [effect-capture-story-sync](../../playbook/effect-capture-story-sync.md): the machine where it happens detects it, sends numbered effects, the other side applies them directly and never replays the player's input.
 
@@ -141,7 +141,7 @@ A door is "open" when its power word at `+0x1D0` equals `1.0` (10 doors read as 
 
 A bot (Windows Python, `SendInput`) plays player A: walks 46 m to the first panel (3 s key presses with a distance check), aims by feedback from the camera angles (0.00255 rad per mouse count horizontally, 0.00237 vertically), clicks to enter the puzzle, moves the cursor onto the start circle (0.218 m left of the panel centre, 3.6 mouse counts per pixel in puzzle mode), presses, drags to the end and clicks to finish. First run, no flags: A logged `local panel 0x64 solved -> event` and `local door 0x34eda opened -> event` (11 events sent in total, 11 acknowledged); B logged `remote panel 0x64 applied as solved` and `remote door 0x34eda opened (call ok)` and emitted nothing back; a state diff over all 594 panels and 327 doors read from both games' memory was identical (1 solved panel, the same 10 open doors).
 
-## The mod repository (2026-10-24)
+## The mod repository (2026-10-22)
 
 The prototype now lives in its own public repo, [TommoDotCommo/witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, `main`), laid out like mdk2-coop: `proxy/` (C++ source and Makefile), `tools/` (install, restart, bot, state diff, scenario suite, Windows probes), `README.md`, `CLAUDE.md`, `AGENTS.md`. No game files and no third-party data: the debug markers that used the randomizer's panel-id list were removed from the overlay (they were only for calibration), and the detector finds panels and doors by type from the live entity table. The two install copies moved into that repo's ignored `local/`. `tools/install.sh` refuses any exe whose SHA-256 is not the supported build and any `AnselSDK64.dll` that is not the original.
 

@@ -6,7 +6,7 @@
 | Versions tested | Steam build `11370412` (app `210970`), `witness64_d3d11.exe` SHA-256 `8d672d444df6a6df7130f25a517bdab1af92731fe2138dc5b324d519561d55a5`, Windows |
 | Projects | [witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, dev preview). Related tooling: [witness-randomizer](https://github.com/jbzdarkid/witness-randomizer) (MIT), [witness-trainer](https://github.com/jbzdarkid/witness-trainer) (MIT) |
 | QA level | automated (narrow: one puzzle, localhost, see QA) |
-| Last updated | 2026-10-24 |
+| Last updated | 2026-10-22 |
 
 ## Where things stand
 
