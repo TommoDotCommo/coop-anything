@@ -62,15 +62,16 @@ echo guard. The source is in [witness-coop](https://github.com/TommoDotCommo/wit
 
 ## QA
 
-A scripted suite (`tools/qa.sh` in witness-coop) restarts both games, has a bot play player A with real keyboard and mouse input
-(walk 46 m, aim from the camera angles, enter the first panel, trace the line), and compares the solved panels and open doors
-read from both games' memory. Last run, one machine, localhost, build 11370412:
+A scripted suite (`tools/qa.sh` in witness-coop) restarts both games, has a bot play player A through the mod's in-process control
+(no window focused, no desktop input: teleport to the first panel, aim, click to enter it, trace the line, click to finish), and compares the solved panels and open doors
+read from both games' memory. Last run (2026-10-22, one machine, localhost, build 11370412); two agents also ran the baseline at the same time, beside an MDK2 agent, with no collision and no window ever taking the owner's focus:
 
 ```
-baseline                                 PASS   identical (1 panel, 10 doors); B sent nothing back; no resend needed
+baseline                                 PASS   identical (1 panel, 10 doors); B sent nothing back; real saves and mouse untouched; game at 30 fps
 lost first send of every event           PASS   identical; A resent all 11 events
 MUTANT: no resend + lost first send      PASS   games diverged (panel 0x64 and door 0x34eda only on A), as required
-MUTANT: echo guard off                   PASS   B echoed 2 events back, as required
+MUTANT: frame cap off                    PASS   game A read 1123 fps (uncapped), as required
+MUTANT: echo guard off                   PASS   B echoed its 2 events back, as required
 ALL OK
 ```
 
