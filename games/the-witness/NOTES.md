@@ -106,6 +106,41 @@ Observed, with a before/after test: A (id 1) was sent a `W` keypress for 1.6 s a
 
 Not tested: more than two players, a real network (LAN or internet; localhost only), packet loss or reordering (no sequence check yet), the puppet while the remote player turns or jumps, a puppet that is occluded by walls (no depth test), or the puppet drawn while the local player has the panel-solving cursor up. The body is a flat rectangle, not a model. Pose is the camera (eye) position, so crouch or prone states are not separated.
 
+## Shared panel and door state (2026-10-22 to 10-24)
+
+Goal: when one player solves a panel, the other player's game shows it solved and the gated door opens. Design follows [effect-capture-story-sync](../../playbook/effect-capture-story-sync.md): the machine where it happens detects it, sends numbered effects, the other side applies them directly and never replays the player's input.
+
+### What the game does on a solve (observed, build 11370412)
+
+Entity type names come from the game's own type descriptors: `entity+0x08` points to a descriptor whose `+0x08` is the name (the trainer reads names the same way, and the door function compares `[entity+8]` with a global descriptor). 48 types in the live world, among them `Machine_Panel` (594), `Door` (327), `Power_Cable` (268), `Pressure_Plate` (263), `Multipanel` (41), `Group` (741), `Inanimate` (26,675), `Collision_Volume` (4,890), `Human` (1, the player, entity `0x1E465`). Descriptors in the exe: `Machine_Panel` `0x62E670`, `Door` `0x62DE70` (RVAs).
+
+A natural solve of the first panel (`0x64`), diffed over every entity between a snapshot before, an idle snapshot (noise baseline) and one 4 s after (`wsnap`/`wdiff2` scripts, 49,414 entities, bytes `+0x20..+0x400`): 15 entities changed in a way idle time does not explain.
+- Panel `0x64`: `+0x278` `0 -> 1.0`, `+0x280` `0 -> 1` (state "Solved"), `+0x290` `0 -> 1.0`, `+0x294` `0 -> 1.0` (solved flag), `+0x298` `0 -> 1` (ever solved). `+0x2B0` ticks all the time (a clock), so it is not part of a solve.
+- The panel's target id at `+0x2B4` is `0x34EDB` (an `Inanimate` group node). The `Door` entity `0x34EDA` got three power words `0 -> 1.0` (`+0x1D0`, `+0x1D4`, `+0x1E4`), an `Inanimate` `0xD05D` the same, and the door's panel and four collision/mesh children moved (the door swings open).
+- Panels power 18 different target types (doors, other panels, cables, groups, plates, ...), and 341 of 594 panels have no valid target, so a solve cannot be mirrored by one special case.
+
+### Writing fields does not open a door
+
+Writing exactly those 11 words into the other game (all writes succeeded) changed nothing in the world: the door stayed closed. The door's opening is started by a function call, the one the trainer calls (`_doorOpenStart(door, 1.0)`). In this build it is `base + 0x8E4B0` (found by the trainer's signature `F2 0F 10 41 24 48 89 68 10`, start 15 bytes before the hit; disassembly shows `this` in `rcx`, the amount in `xmm1`, a type check against the Door descriptor and recursion over linked entities). Calling `DoorOpenStart(0x34EDA, 1.0)` inside the other game moved panel `0x64` to exactly the position the real solve produced there, `(-186.232, -158.897)`, with no crash.
+
+A door is "open" when its power word at `+0x1D0` equals `1.0` (10 doors read as open by default in a fresh game, identical in both games, plus `0x34EDA` after the call).
+
+### Implementation (in the proxy DLL; source not published yet)
+
+- Detector thread (10 Hz): every `Machine_Panel` solved (`+0x294 == 1.0` and `+0x298 == 1`) and every `Door` open (`+0x1D0 == 1.0`) is compared with its last known value; a change becomes an event.
+- Transport: events are numbered per stream epoch, acknowledged cumulatively, resent every 150 ms until acknowledged, applied once and in order, duplicates dropped. A peer restart (new session id in its pose packets) starts a new epoch and a full resend of every solved panel and open door; applying is idempotent.
+- Applier (render thread, between frames): a remote panel is written as solved (the five words above); a remote door is opened by calling the game function, after checking the entity's type. Both mark the entity as suppressed for 5 s so the local detector does not send the change back.
+- Control channel for development: `witness_cmd.txt` (`door <hexid>`), polled by a thread, run on the render thread.
+
+### Two bugs found by running it (both are in the playbook's warnings)
+
+1. A baseline taken while the world was still loading saw 39 transient "open" doors; the other game applied 30 of them. Fix: nothing is detected, resent or applied until the camera is valid and the panel and door counts are identical on three scans 3 s apart.
+2. The echo guard was only a "known" flag, which the detector reset when the door was not yet powered a moment after the call, so 24 doors bounced back. Fix: a per-entity suppression window (5 s) after every remote apply.
+
+### Test
+
+A bot (Windows Python, `SendInput`) plays player A: walks 46 m to the first panel (3 s key presses with a distance check), aims by feedback from the camera angles (0.00255 rad per mouse count horizontally, 0.00237 vertically), clicks to enter the puzzle, moves the cursor onto the start circle (0.218 m left of the panel centre, 3.6 mouse counts per pixel in puzzle mode), presses, drags to the end and clicks to finish. First run, no flags: A logged `local panel 0x64 solved -> event` and `local door 0x34eda opened -> event` (11 events sent in total, 11 acknowledged); B logged `remote panel 0x64 applied as solved` and `remote door 0x34eda opened (call ok)` and emitted nothing back; a state diff over all 594 panels and 327 doors read from both games' memory was identical (1 solved panel, the same 10 open doors).
+
 ## Derived (not tested)
 
 - Player position and panel/entity state are reachable from outside the process, and the community already finds them by signature scan, so a mod can be an external or injected process without source.

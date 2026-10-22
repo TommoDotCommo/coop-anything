@@ -7592,7 +7592,7 @@
   notes: No co-op or multiplayer mod found; the game is single-player. Groundwork exists for one. The MIT-licensed witness-randomizer and
     witness-trainer attach to the running game from outside and read and write player position and puzzle-panel state by signature scan. On
     Steam build 11370412 a prototype now runs on one PC, where a proxy DLL hooks the game's Direct3D 11 Present call, and two game copies exchange camera pose
-    over local UDP and draw each other as puppets (see games/the-witness). Still to do are shared panel state, a real network, and tests beyond one scripted walk.
+    over local UDP and draw each other as puppets. Solving a panel in one game marks it solved in the other and opens the gated door (game door function called, panels and doors synced, tested on the first puzzle only, see games/the-witness). Still to do are cables and powered panels, a real network, and more puzzles.
   sources:
   - https://github.com/jbzdarkid/witness-randomizer
   - https://github.com/jbzdarkid/witness-trainer
