@@ -247,3 +247,16 @@ frame-cap checks pass and all resources are released. T0 and the DLL build pass.
 The new graph probe and native disassembly also correct an earlier target interpretation: stored target IDs subtract the entity
 manager's base ID (observed 1) before table lookup. The first panel's target names its door after this normalization, rather
 than the adjacent Inanimate previously inferred. See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-second-tutorial-puzzle-exposes-skipped-door-zero). Cables and powered panels remain unimplemented.
+
+## 2026-10-22: panel power-on progression implemented
+
+Witness-coop `9799af8` adds a reliable panel power-on effect, native render-thread applier (`exe+0xC2890`), separate echo
+guard and restart snapshot support. A natural black/white tutorial solve at `0x18AF` now activates `0x1B` on both games while
+keeping that target unsolved. The new real-game clean scenario also replaces B with a fresh process after the original events
+are acknowledged; both worlds match 2 solved panels, 10 open doors and 238 powered panels after catch-up. The disabled-power
+mutant leaves only `0x1B` unpowered on B. Both scenarios pass (exit 0), including save/cursor/frame-cap checks, and resources
+are released. New power T0 regressions, four twins, protocol compatibility controls, existing application regressions and the
+500-session fuzz suite with all ten original twins pass. DLL build passes.
+
+Protocol v2 adds the new event vocabulary; both peers need the updated DLL. Power-off switching and cables remain unsupported.
+See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-panel-power-on-progression).

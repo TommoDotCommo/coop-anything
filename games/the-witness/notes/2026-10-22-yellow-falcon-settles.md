@@ -55,3 +55,24 @@ Implementation: witness-coop commit `bfe1b7e` (`yellow-falcon-settles`).
 ### Unknowns
 
 - Cables and powered-panel replication remain unimplemented. The second tutorial panel is another door gate, so it first exposed this earlier correctness gap.
+
+## Follow-up: panel power-on progression
+
+### Observations
+
+- A read-only target census found a simple already-powered tutorial panel at table index `0x18AF`, raw target `0x1C` = target table index `0x1B` (Machine_Panel, initially requested and visible power both zero). Its 7-node graph has a middle horizontal route that separates the black and white squares.
+- Natural proxy input solve: teleport above the standing point `(-158.745,-69.925,10.0)`, yaw `2.749`, pitch `0.003`; the eye settles at z `6.7143`. Enter aiming, 80 counts left to the start, click, 40 frames of +18 x, click finish. A source solve lights up target `0x1B` on A; B gets the solved source but leaves its target at `(0,0)` power. In-game shots show the second panel lighting on A. Owner save hashes unchanged across the research session; slots released.
+- A first long teleport at ground height was displaced by collision resolution. Arriving above the ground works; the new bot checks the actual camera position and retries up to three times before failing.
+- Disassembly of build 11370412 at `exe+0xC2890` takes a panel pointer, sets requested power `+0x2A4` to `1.0`, handles redraw/randomization and linked doors. Visible power `+0x2A0` follows in the normal game loop. The applier type-checks Machine_Panel and checks the function prologue, then calls this on the render thread.
+- Added deterministic power-on core tests; both live sync and restart recovery failed before the new event. After implementation they pass, including dropped first sends, refused calls held past the echo interval, no echo, and ensuring a powered target is not marked solved. Disabled-power, no-apply-retry, no-echo-guard and no-resync twins are caught. Existing application regressions plus 500 clean fuzz sessions and all ten old fuzz twins pass. DLL build passes.
+- New event kind 3 shares panel power-on via the reliable queue and full-state snapshots. Power state is part of the stable-world signature and has its own echo guard. The wire magics are v2 (`WTP2`, `WTE2`, `WTA2`) to avoid an older receiver silently skipping the new vocabulary. Both copies must use the updated DLL.
+- Real-game `tools/qa.sh 'panel power chain'`: clean and disabled-power mutant both PASS, command exit 0. Clean also restarts B after all original events are acknowledged: both worlds match 2 solved panels, 10 open doors and 238 powered panels. The target remains unsolved, B emits no power echo and applies one power event. The mutant preserves both solved panels and doors but has 237 powered panels on B, missing only `0x1B`. Save hashes, instance save redirect, free cursor and 30.0 fps checks pass; own games and slots released.
+- Protocol compatibility fixture: checksummed v1 event and pose are ignored, while matching v2 controls are accepted. All power tests and the existing 500-session fuzz/twin suite pass. Implementation: witness-coop `9799af8` on `yellow-falcon-settles`. Python compilation and `git diff --check` pass; final DLL rebuild passes.
+
+### Derived
+
+- Reading requested power for detection catches the discrete activation while letting each engine animate its visible brightness. The real-game assertion requires both requested and visible power to reach 1.
+
+### Unknowns
+
+- This adds power-on progression only, matching the existing solved/open progression model. Power-off switching, conflict/authority rules for reversible state, and cable sync remain unimplemented.

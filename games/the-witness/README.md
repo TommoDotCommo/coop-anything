@@ -5,7 +5,7 @@
 | Engine | In-house engine (Thekla). Family not confirmed: `detect_engine` matched no signature |
 | Versions tested | Steam build `11370412` (app `210970`), `witness64_d3d11.exe` SHA-256 `8d672d444df6a6df7130f25a517bdab1af92731fe2138dc5b324d519561d55a5`, Windows |
 | Projects | [witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, dev preview). Related tooling: [witness-randomizer](https://github.com/jbzdarkid/witness-randomizer) (MIT), [witness-trainer](https://github.com/jbzdarkid/witness-trainer) (MIT) |
-| QA level | automated (narrow: two tutorial door puzzles, localhost, see QA) |
+| QA level | automated (narrow: two tutorial doors and one panel power-on chain, localhost, see QA) |
 | Last updated | 2026-10-22 |
 
 ## Where things stand
@@ -13,7 +13,7 @@
 No other co-op for The Witness was found. [witness-coop](https://github.com/TommoDotCommo/witness-coop) is a dev-preview prototype that runs on one PC with two copies of the game:
 each player sees the other as a puppet drawn through a Direct3D 11 overlay, and when one player solves a panel the other
 game marks it solved and the door it gates opens, started by the game's own door function. Panels and doors are synced
-for all 594 panels and 327 doors; the first two tutorial door puzzles now have automated natural solves and state comparisons. Cables, panels powered by other panels, lasers, plates, bridges and the rest are not synced.
+for all 594 panels and 327 doors; the first two tutorial door puzzles and a black/white tutorial power-on chain have automated natural solves and state comparisons. Panel power-on progression now syncs separately from solved state. Cables, power-off switching, lasers, plates and bridges remain unsynced.
 
 ## Existing work
 
@@ -96,7 +96,24 @@ use engine IDs. Disassembly at `exe+0xB9F00` subtracts that base before looking 
 second panel's raw target 1 means table index 0. This corrects the earlier interpretation of the first panel's target as an
 Inanimate entity; it too names a door after normalization. `wpanel.py` reports the graph and both target namespaces.
 
-Not tested: a real network, more than two players, puzzles beyond the first two tutorial doors or any other gate type, a first-time late join into a game
+Panel power-on progression now uses a separate reliable effect (kind 3). The applier calls the game's panel power-on
+function at `exe+0xC2890`, type-checked and prologue-checked, on the render thread. Requested power is `+0x2A4`;
+the game updates visible power at `+0x2A0`. Activating a target does not mark it solved. The core tracks power in startup
+stability and snapshots and has a separate echo guard. This is power-on progression; it does not replicate power-off switching.
+
+The natural black/white tutorial solve at table index `0x18AF` powers `0x1B`. Before the new event B learned the source solve
+but its target stayed dark. A new bot traces the middle horizontal route and requires the target to power on while remaining
+unsolved. The clean real-game scenario also restarts B after the original effects are acknowledged, then compares solved
+panels, doors and powered panels in both processes. The disabled-power mutant must leave only `0x1B` unpowered on B.
+Power-on T0 tests cover loss, refused calls, no echo, unsolved targets and restart snapshots, with four caught twins.
+Protocol v2 uses `WTP2`/`WTE2`/`WTA2`; both peers need the updated DLL.
+Targeted run (2026-10-22, witness-coop `9799af8`, command exit 0): clean and disabled-power mutant both PASS. The clean
+case includes a fresh B restart after original ACKs and matches 2 solved panels, 10 open doors and 238 powered panels. The
+mutant has 237 powered panels on B, missing only the target `0x1B`. Both keep the target unsolved. Save hashes, instance saves,
+free cursor and 30.0 fps checks pass; no leased games remain. Checksummed v1 event/pose rejection also has T0 coverage with
+v2 acceptance controls.
+
+Not tested: a real network, more than two players, puzzles beyond the first two tutorial doors and the first black/white tutorial power-on chain, or other gate types, a first-time late join into a game
 that already has progress, same-process world replacement or loading a save, fullscreen, non-16:9 windows.
 The probes and test scripts are in witness-coop.
 
@@ -106,16 +123,16 @@ Not playable together yet (prototype only, two copies on one PC). There is no in
 
 ## Known issues
 
-- Only panels and doors are synced. A panel that depends on another panel's power, cables, plates and lasers stay as in single-player.
+- Solved panels, opened doors and panel power-on progression are synced. Power-off switching, cables, plates and lasers remain unsynced. Reversible state still needs an authority/conflict policy.
 - The puppet is a flat rectangle with a facing dot; it shows through walls (no depth test).
-- Replacing a world in the same process (loading a save or starting a new game) remains unhandled. Restarting one process into a fresh new game now has an automated catch-up check, limited to the first puzzle.
+- Replacing a world in the same process (loading a save or starting a new game) remains unhandled. Restarting one process into a fresh new game has automated catch-up checks for the first door and the black/white power-on chain.
 - Test hazard for the next agent: the game keeps saves in `%APPDATA%\The Witness` whatever
   folder the exe runs from. Starting a New Game from a copied install rewrote the owner's
   latest existing save and settings file there. Back up and hash that folder first.
 
 ## Next steps
 
-1. Sync what a solve powers besides doors: cables and panels powered by panels (find the call, as for doors), plates, lasers, bridges. Check each with a natural solve and a state diff.
+1. Extend the verified panel power-on progression to cables, power-off switching, plates, lasers and bridges. Check each with a natural solve and a state diff; define authority for reversible state.
 2. Real networking (Steam relay or direct IP), then random loss and lag runs with the chaos tool.
 3. First-time late join and saves: extend the verified peer-restart catch-up to same-process world replacement and define what happens when worlds differ.
 4. Occlusion and a real puppet model instead of a flat rectangle.
