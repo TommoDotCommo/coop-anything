@@ -187,6 +187,20 @@ Dead ends, so nobody repeats them: posting `WM_ACTIVATEAPP`, `WM_ACTIVATE`, `WM_
 
 Two mistakes the suite itself caught: (1) a baseline passed while the bot had done nothing (both games untouched, so "identical"), because the Windows paths in the bot command lost their backslashes in the shell; the suite now requires the bot to report the panel solved and checks `A emitted a panel event`. (2) The same shell problem as with `eval` of exported paths: quote every Windows path. The old `SendInput` bot and the desktop input lock are no longer used by the Witness suite.
 
+## Phase 3: the sync core without the game (T0) (2026-10-22)
+
+Result: the sync logic (events, acks, resend, epochs, stable-world gate, settle window, echo guard, full resend) moved out of `state.cpp`/`coop.cpp` into a pure C++17 library, `proxy/core/sync_core.{h,cpp}` in witness-coop. It sees the game only through a `World` interface (scan, read and apply panel/door state, camera pose), so the hub's fuzzer (`tools/fuzz`, `ITarget`) drives two cores over a lossy link with a fake world (loading phase, doors open by default, a door that powers up late by itself, cascade doors that open 200-800 ms after a solve, a remote door that shows up late). `make -C proxy/core test` (or `python3 proxy/core/tests/run_t0.py`) builds it and runs 500 seeded 150 s sessions clean (about 1,500 restarts, tens of thousands of replayed stale packets), then once per bug twin; all 10 twins are caught (2.7 s in total, no game, no slot):
+
+`no_resend` and `no_checksum` -> not_quiescent/converge, `no_echo_guard` -> echo_sent, `no_dedupe` -> double_apply, `no_epoch_reset` and `apply_out_of_order` -> out_of_order_apply/converge, `no_resync_on_restart` -> converge, `no_gate` -> spurious_event/converge, `no_settle` -> spurious_event, `wrong_ack_epoch` -> not_quiescent.
+
+What the simulator found that the real two-game suite had not:
+- **Peer restarts flapped.** Any different session id was treated as a restart, so two packets in flight from an old and a new session made each side reset the other forever. Sessions and epochs now only grow; older ones are ignored. (The production session id is now `time(nullptr)`, which grows on every start.)
+- **The settle window swallowed a real solve.** Changes in the first 15 s after the gate were folded into the baseline, which also folded a real panel solve made in that time: never sent. Panels are now never folded; doors are folded except within 5 s after a local solve (the cascade of that solve). Limit, by design and counted in the target (`startup_flip_beside_a_solve`): a door that powers up by itself within 5 s of a local solve looks like that solve's cascade and is sent.
+- My own bug: the session was read from the checksum bytes (offset 36, not 32). Only the lossy test saw it.
+- **Coverage depends on the session profile matching the protocol's timing.** Seven of ten twins were first not caught because one machine restarted every 1.4 s while the gate needs 9 s or more. The profile now has a game not quit within 45 s of starting, longer sessions, and a player who acts only once the world has loaded and settled; `no_settle` additionally needed the late flip to land after the gate and no solve to delay it. A twin that passes means the test cannot see that protection, not that the protection is fine.
+
+Not covered by T0: the real game's memory layout and timing (the `GameWorld` adapter in `state.cpp`), only the T2 suite checks that. The T2 suite was re-run on the refactored build (see the QA section of the README).
+
 ## Derived (not tested)
 
 - Player position and panel/entity state are reachable from outside the process, and the community already finds them by signature scan, so a mod can be an external or injected process without source.
