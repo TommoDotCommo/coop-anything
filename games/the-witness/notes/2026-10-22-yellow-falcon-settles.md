@@ -35,3 +35,23 @@ Implementation: witness-coop commit `bfe1b7e` (`yellow-falcon-settles`).
 ### Unknowns
 
 - Real-game first-time late join, same-process save reload and WAN behavior remain untested.
+
+## Follow-up: second tutorial puzzle exposes skipped door zero
+
+### Observations
+
+- Read Tutorial Bend `0x182` using the panel graph offsets from [witness-randomizer Memory.cpp](https://github.com/jbzdarkid/witness-randomizer/blob/master/Source/Memory.cpp), build branch `GLOBALS == 0x62D0A0`: positions at `+0x3C0`, flags `+0x3C8`, connections `+0x3D0/+0x3D8`, counts `+0x3B4/+0x3B8`. Three nodes: `(0.8,0.25)`, `(0.8,0.75)`, `(0.2,0.75)`, connections `0-1`, `1-2`.
+- Standing camera command `tp -182.71 -164.90 3.727 0.303 -0.066` sees the puzzle screen head-on. The actual eye settles at z about 3.896 on the floor. A proxy back-buffer shot shows the start circle at `(1016,640)` in 1920x1080; entering aiming mode initially puts the cursor at `(960,540)`.
+- Free cursor placement uses 112 counts right and 200 down at this viewport. A short constrained trace stopped before the end; 40 frames of `(0,-18)` then 40 of `(-18,0)` reaches both segment ends. Clicking finishes the natural solve.
+- Memory after the solve: A and B both contain solved panels `0x64` and `0x182`; A has 11 open doors, B 10. The only difference is door ID `0x0`, open only on A. `tools/state_diff.py` exited 1 with exactly that difference.
+- Root cause in `proxy/state.cpp`: the entity scan starts at ID 1. The read-only census starts at 0 and finds 327 doors, while the adapter sees 326. `GameEntity(0)`, packet validation and the door-call bridge otherwise accept zero.
+- Added `wbot2.py`, shared `wcontrol.py`, read-only `wpanel.py`, and a second-tutorial suite scenario that requires both panels solved plus both specific doors open. A skip-zero mutant must retain the second panel solve on B but lose door zero. The fresh pre-fix clean scenario FAILed with exactly door zero missing on B, while both bots reported solved from memory. The mutant also reproduced that same missing-door state. The scanner fix includes table index zero by default, and `skip_entity_zero=1` restores the old scan for the mutant. Post-fix clean/mutant state checks both PASS: clean has 2 panels and 11 doors on both sides, no B echo; mutant has both panels but lacks only door zero on B. Save hashes, redirect, free cursor and 30.0 fps checks pass; no games/leases remain. The wrapper unexpectedly returned 1 after ALL OK; a repeat with scripts left unchanged returned 0, with both scenarios PASS and all resources released. The earlier status mismatch did not recur; cause unknown. Implementation: witness-coop `cfb67a0` on `yellow-falcon-settles`. Shell syntax, Python compilation and whitespace checks pass. DLL build and all existing T0 tests pass.
+
+### Derived
+
+- Table index zero is valid in this build; zero cannot be used as a table-index sentinel during census. The mod/probes call these normalized table indices entity IDs; the game's stored engine IDs use the separate base described below.
+- Correction to the earlier target-type interpretation: this repo's event IDs and probes use entity **table indices**, while the game's target fields hold engine IDs. Read `table_base_id = u32([base+0x62D0A0]+8)`, observed `1`. At `exe+0xB9F00`, the game reads panel `+0x2B4`, subtracts this base ID, indexes `[globals+0x18]`, checks the Door descriptor, and calls `exe+0x8E4B0`. Thus target `0x34EDB` means table index `0x34EDA`, and target `1` means table index zero. The earlier notes' claim that the first target is an Inanimate at index `0x34EDB` was a namespace error. `wpanel.py` now reports both raw target and normalized table index.
+
+### Unknowns
+
+- Cables and powered-panel replication remain unimplemented. The second tutorial panel is another door gate, so it first exposed this earlier correctness gap.

@@ -5,7 +5,7 @@
 | Engine | In-house engine (Thekla). Family not confirmed: `detect_engine` matched no signature |
 | Versions tested | Steam build `11370412` (app `210970`), `witness64_d3d11.exe` SHA-256 `8d672d444df6a6df7130f25a517bdab1af92731fe2138dc5b324d519561d55a5`, Windows |
 | Projects | [witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, dev preview). Related tooling: [witness-randomizer](https://github.com/jbzdarkid/witness-randomizer) (MIT), [witness-trainer](https://github.com/jbzdarkid/witness-trainer) (MIT) |
-| QA level | automated (narrow: one puzzle, localhost, see QA) |
+| QA level | automated (narrow: two tutorial door puzzles, localhost, see QA) |
 | Last updated | 2026-10-22 |
 
 ## Where things stand
@@ -13,8 +13,7 @@
 No other co-op for The Witness was found. [witness-coop](https://github.com/TommoDotCommo/witness-coop) is a dev-preview prototype that runs on one PC with two copies of the game:
 each player sees the other as a puppet drawn through a Direct3D 11 overlay, and when one player solves a panel the other
 game marks it solved and the door it gates opens, started by the game's own door function. Panels and doors are synced
-for all 594 panels and 327 doors, but only the first puzzle (the door at the end of the start tunnel) has been played
-through and tested. Cables, panels powered by other panels, lasers, plates, bridges and the rest are not synced.
+for all 594 panels and 327 doors; the first two tutorial door puzzles now have automated natural solves and state comparisons. Cables, panels powered by other panels, lasers, plates, bridges and the rest are not synced.
 
 ## Existing work
 
@@ -85,7 +84,19 @@ retains its PID and state; fresh B recovers all progress (one panel, ten doors) 
 missing exactly panel `0x64` and door `0x34eda`. Real saves, cursor and frame-cap checks pass. This exercises a full-state
 resend after the original deltas were already acknowledged.
 
-Not tested: a real network, more than two players, a second puzzle or any other gate type, a first-time late join into a game
+Targeted run (2026-10-22, witness-coop `cfb67a0`, command exit 0): clean and skip-zero-mutant both PASS. Save isolation, free
+cursor and 30.0 fps checks passed. The second tutorial bot (`wbot2.py`) exposed a real adapter bug: the detector started at table index 1, skipping the door at
+index 0 that Tutorial Bend (`0x182`) opens. Before the fix, both games had the two panels solved, but only A had the second door
+open. Including index zero gives identical state (2 panels, 11 doors); the skip-zero mutant preserves both solved panels but
+loses exactly that door on B. The bot traces the real three-node bend and checks solved state in memory. Its standing point
+and cursor path are calibrated for a 1920x1080 back buffer.
+
+The entity manager stores a base ID at `globals+8` (observed 1). The mod and its probes use table indices; game target fields
+use engine IDs. Disassembly at `exe+0xB9F00` subtracts that base before looking up the target and opening its door. Thus the
+second panel's raw target 1 means table index 0. This corrects the earlier interpretation of the first panel's target as an
+Inanimate entity; it too names a door after normalization. `wpanel.py` reports the graph and both target namespaces.
+
+Not tested: a real network, more than two players, puzzles beyond the first two tutorial doors or any other gate type, a first-time late join into a game
 that already has progress, same-process world replacement or loading a save, fullscreen, non-16:9 windows.
 The probes and test scripts are in witness-coop.
 

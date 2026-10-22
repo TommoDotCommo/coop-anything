@@ -236,3 +236,14 @@ See [session evidence](notes/2026-10-22-yellow-falcon-settles.md): witness-coop 
 ## 2026-10-22: real-game restart catch-up verified
 
 Witness-coop `df7b276` adds selective peer restart and a catch-up scenario plus mutant. After the first solve is delivered and acknowledged, a fresh B process recovers one solved panel and ten open doors from surviving A; disabling full-state resend leaves exactly the panel and its door missing. Both targeted scenarios passed, including save/cursor/frame-cap checks. See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-real-game-restart-catch-up). First-time late join and same-process reloads remain untested.
+
+## 2026-10-22: second tutorial door now syncs
+
+Witness-coop `cfb67a0` adds an in-process Tutorial Bend bot and fixes the detector's missing table slot zero. The fresh pre-fix
+check failed: two panels solved on both sides, door zero open only on A. After the fix, the targeted clean and skip-zero-mutant
+scenarios both pass (final command exit 0): clean matches 2 panels/11 doors; mutant loses only the second door on B. Save/cursor/
+frame-cap checks pass and all resources are released. T0 and the DLL build pass.
+
+The new graph probe and native disassembly also correct an earlier target interpretation: stored target IDs subtract the entity
+manager's base ID (observed 1) before table lookup. The first panel's target names its door after this normalization, rather
+than the adjacent Inanimate previously inferred. See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-second-tutorial-puzzle-exposes-skipped-door-zero). Cables and powered panels remain unimplemented.
