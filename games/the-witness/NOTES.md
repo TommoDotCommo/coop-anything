@@ -228,3 +228,7 @@ Not covered by T0: the real game's memory layout and timing (the `GameWorld` ada
 2. Copy the install into `local/` and run in the copy only.
 3. Finish research (Nexus, ModDB, Reddit, Discord) and ask the owner before any account use.
 4. Decide hook style (external process vs injected DLL) with `coop-reverse-engineer`.
+
+## 2026-10-22: acknowledged state application retries
+
+See [session evidence](notes/2026-10-22-yellow-falcon-settles.md): witness-coop `bfe1b7e` retains acknowledged panel/door events when the game adapter is temporarily unavailable. Deterministic regressions and discard-on-failure twins prove retries without another packet, independent progress and no echo; 500 fuzz sessions and 10 existing twins pass. Real-game startup failure and baseline attempts are recorded separately there.
