@@ -1,6 +1,6 @@
 # The Witness: research notes
 
-Status: research only, no code yet. Branch `game/the-witness`. Date: 2026-10-22.
+Status: working prototype (two game copies on one PC, localhost): puppet, solved panels, opened doors, panel power-on, lit cables, restart catch-up and save-reload resync, with an automated suite. Branch `game/the-witness`. Date: 2026-10-22.
 
 ## Game identity (tested build)
 
@@ -39,7 +39,7 @@ Read-only attach (`PROCESS_VM_READ`, Windows Python 3.11 + ctypes, no writes) to
 
 Side effect: launching the copy rewrote `Launcher.variables` in the real `%APPDATA%\The Witness` (a launcher settings file, not a save). The save folder was backed up first (14 files, hashes identical) to `local/saves-backup/`.
 
-Second probe (after the owner started a New Game and went through the first door). Observed: camera position changed from (-36.1, -54.5, 4.4) at the menu to (-183.8, -163.4, 3.8) in the world, about 4.5 m from entity `0x64`, and stayed identical across two samples 5 s apart while the owner stood still. So the camera address tracks the player (moving-walk delta not yet sampled). Entity window `+0x290..+0x2D0`: solved/used panel `0x64` has `1.0` in many float slots (`+0x290`..`+0x2AC`) and `+0x2B4` = 216795; unsolved panel `0x65` has `+0x29C` = 1.0, `+0x2B4` = 110 and `+0x2BC` = 111. Unexplained: what 216795 means (not a plausible entity id), and which field is "solved". Needs a before/after sample of one panel being solved.
+Second probe (after the player started a New Game and went through the first door). Observed: camera position changed from (-36.1, -54.5, 4.4) at the menu to (-183.8, -163.4, 3.8) in the world, about 4.5 m from entity `0x64`, and stayed identical across two samples 5 s apart while the player stood still. So the camera address tracks the player (moving-walk delta not yet sampled). Entity window `+0x290..+0x2D0`: solved/used panel `0x64` has `1.0` in many float slots (`+0x290`..`+0x2AC`) and `+0x2B4` = 216795; unsolved panel `0x65` has `+0x29C` = 1.0, `+0x2B4` = 110 and `+0x2BC` = 111. Unexplained: what 216795 means (not a plausible entity id), and which field is "solved". Needs a before/after sample of one panel being solved.
 
 Third probe (before/after solving one panel). Correction: the panel at the player's feet was entity `0x182` ("Tutorial Bend", 0.6 m from the camera), not `0x65` (about 180 m away). Observed: solving `0x182` changed `+0x290`, `+0x294`, `+0x2A8`, `+0x2AC` to `1.0`, `+0x298` to int `1`, and `+0x2B0` to `1.322` (float; meaning unknown). After the solve its field pattern equals the earlier-solved panel `0x64`.
 
@@ -47,7 +47,7 @@ Static cross-check: the trainer's `solvedTargetOffset` signature (`84 C0 74 19 0
 
 Camera: tracked entering the world (see second probe); smooth walking deltas not sampled.
 
-Save-folder finding: the game keeps saves in `%APPDATA%\The Witness`, whatever folder the exe runs from, so a "test copy" does not isolate saves. Starting a New Game rewrote the latest existing `.witness_campaign` (and its png) there and added new files; the launch also rewrote `Launcher.variables`. Steam Cloud (`steam_autocloud.vdf`) may sync such changes (not checked). Back the folder up before any test launch; the owner chose not to restore here. Lesson for the playbook: check where a game writes saves before launching a copy.
+Save-folder finding: the game keeps saves in `%APPDATA%\The Witness`, whatever folder the exe runs from, so a "test copy" does not isolate saves. Starting a New Game rewrote the latest existing `.witness_campaign` (and its png) there and added new files; the launch also rewrote `Launcher.variables`. Steam Cloud (`steam_autocloud.vdf`) may sync such changes (not checked). Back the folder up before any test launch; the player chose not to restore it here. Lesson for the playbook: check where a game writes saves before launching a copy.
 
 ## Entity census and puppet candidates (2026-10-22, read-only, build 11370412)
 
@@ -63,7 +63,7 @@ Not known: which of the 48 types draw a mesh, and whether moving an entity's `+0
 
 ### Does moving an entity's position field move what is drawn? (2026-10-22)
 
-Test on the live copy (the only writes made to the game so far; each restored and read back): wrote entity z (`+0x2C`) +3.0 m, held 10 to 24 s, then restored the original. Observed: the write took and stayed for the whole hold (the game did not overwrite it), the restore read back exactly the original. Entity `0x182` (panel at the player's feet, likely out of frame): owner saw nothing. Entity `0x64` (panel, about 8 m away): a screenshot taken during the displacement looks identical to the one before (same panel at the same pixels in the doorway ahead). Not proven: that the glowing panel in the screenshot is `0x64`.
+Test on the live copy (the only writes made to the game so far; each restored and read back): wrote entity z (`+0x2C`) +3.0 m, held 10 to 24 s, then restored the original. Observed: the write took and stayed for the whole hold (the game did not overwrite it), the restore read back exactly the original. Entity `0x182` (panel at the player's feet, likely out of frame): the player saw nothing. Entity `0x64` (panel, about 8 m away): a screenshot taken during the displacement looks identical to the one before (same panel at the same pixels in the doorway ahead). Not proven: that the glowing panel in the screenshot is `0x64`.
 
 Screenshot method that needs no installs: Windows Python `ctypes` (find the window with `EnumWindows`, `BitBlt` from the screen DC, write the PNG with `zlib`). Works on this windowed copy.
 
@@ -153,22 +153,22 @@ QA level: the suite meets the repo's definition of `automated` (a scripted harne
 
 ## Running several copies and agents at once (2026-10-22)
 
-Measured on the owner's PC (31 GB RAM, 16 logical CPUs, two monitors, build 11370412), to plan three agents per game:
+Measured on one test machine (build 11370412), to plan several agents per game:
 - Memory: each running Witness takes about 1.8 GB resident (a pair 3.6 GB); the install is 3.9 GB on disk (2.7 GB `data-pc.zip`, 1.4 GB `data/videos`).
 - Speed: the frame counter at `base + 0x63954C` (build 11370412, from the randomizer's Memory.cpp) advanced at 724 fps with the active window and 10 fps minimized. (A first note here said 724 fps for a window "sent to the bottom, not focused"; that was wrong, that window was still the active one. Phase 1 measured it properly, see below.) The game is uncapped, so instances need a frame cap in the proxy.
 - Input: the exe imports `RegisterRawInputDevices` and `GetRawInputData` (plus `GetCursorPos`, `SetCursorPos`, `ClipCursor`, `SetCapture`), so keyboard and mouse reach it only through the focused window; the `SendInput` bot needs the desktop to itself.
-- Saves: the exe imports `SHGetFolderPathW` (no environment variable is involved), so every copy, and the owner's real game, share `%APPDATA%\The Witness`. Redirecting that call inside the proxy would isolate instances and protect the owner's saves; not built yet.
+- Saves: the exe imports `SHGetFolderPathW` (no environment variable is involved), so every copy, and the player's real game, share `%APPDATA%\The Witness`. Redirecting that call inside the proxy would isolate instances and protect the player's saves (built in Phase 1, below).
 - Hard links: a hard-linked `data-pc.zip` made the second concurrent instance fail (`error opening bundle file data-pc.zip`, then `fatal_error_data_corruption` in its log), while the first ran fine; everything else (exe, DLLs, `data/videos`) shares fine. So the zip is a private copy per slot; a slot then costs 2.7 GB plus about 40 MB. Whether the proxy could instead relax the file's share mode so one zip serves all instances is untested.
-- Windows Firewall prompts once per exe path and a cancelled prompt leaves a Block rule (the owner's `C:\coop\mdk2-test` has them); 32 narrow Allow rules (one per lab slot and game, inbound, from 127.0.0.1 only, only under `C:\coop\lab`) were created with one UAC approval.
+- Windows Firewall prompts once per exe path and a cancelled prompt leaves a Block rule (an older test folder had them); 32 narrow Allow rules (one per slot and game, inbound, from 127.0.0.1 only, only under the test folder) were created with one UAC approval.
 
-Result: a shared layer, `~/source/coop-lab` (`lab`: slot leases with a free-RAM guard, identity from the worktree folder, hard-linked instance pools on NTFS, per-agent ports and run folders, a desktop input lock, window tiles on the second monitor, path-scoped cleanup), and Witness tools that use it. Test with three agents at once (two Witness worktrees and one MDK2 checkout started in the same second, getting slots 4-5, 2-3 and 0-1): Witness baseline PASS twice, mdk2-coop's own QA 34 of 34, no collisions, nothing left running, base copy intact. Not covered yet: a full Witness suite from two agents (only the baseline ran), more than three agents, MDK2 in more than one agent with its own sweeps.
+Result: a local shared layer (slot leases with a free-RAM guard, identity from the git worktree folder, hard-linked instance pools on NTFS, per-agent ports and run folders, a desktop input lock, path-scoped cleanup), and Witness tools that use it. Test with three agents at once (two Witness worktrees and one MDK2 checkout started in the same second, getting slots 4-5, 2-3 and 0-1): Witness baseline PASS twice, mdk2-coop's own QA 34 of 34, no collisions, nothing left running, base copy intact. Not covered yet: a full Witness suite from two agents (only the baseline ran), more than three agents, MDK2 in more than one agent with its own sweeps.
 
 ## Phase 1: isolation, frame cap, shared zip (2026-10-22)
 
 All three are import-table or `Present` hooks in the proxy (`hooks.cpp`, `config.cpp`, `overlay.cpp` in witness-coop), configured in `witness_coop.cfg`.
-- **Save folder:** with `save_dir=instance` the hook on `SHGetFolderPathW` returns `<game folder>\appdata` for `CSIDL_APPDATA` (the game asks for csidl 0x1A; log line `hooks: SHGetFolderPathW(csidl 0x1a) -> redirected`). After a full baseline run (new game, solve, autosave) the owner's real `%APPDATA%\The Witness` was byte-identical (76 files, every SHA-256 the same) while each instance's own `appdata\The Witness` held its new save and screenshot. The suite now checks this after every scenario. Before the redirect, a three-agent run had written saves into the real folder.
+- **Save folder:** with `save_dir=instance` the hook on `SHGetFolderPathW` returns `<game folder>\appdata` for `CSIDL_APPDATA` (the game asks for csidl 0x1A; log line `hooks: SHGetFolderPathW(csidl 0x1a) -> redirected`). After a full baseline run (new game, solve, autosave) the real `%APPDATA%\The Witness` was byte-identical (76 files, every SHA-256 the same) while each instance's own `appdata\The Witness` held its new save and screenshot. The suite now checks this after every scenario. Before the redirect, a three-agent run had written saves into the real folder.
 - **Frame cap:** `cap_fps=30` in `Present` (QueryPerformanceCounter, `Sleep(1)` then spin). Measured with `wfps.py`: the active game ran at 30.0 fps; a game that is not the foreground window ran at 9.8 fps. So the game throttles itself to about 10 fps whenever it is not the foreground window (also minimized). Posting `WM_ACTIVATEAPP`, `WM_ACTIVATE` and `WM_SETFOCUS` to its window every 20 frames (`force_active`, removed again) did not change that; the mechanism turned out to be two bytes the game keeps (found in Phase 2, below). Observed: the game also takes the foreground by itself while loading although it is started with `SW_SHOWNOACTIVATE`; the foreground belonged to the last-started game until a neutral window took it.
-- **Shared zip:** the hook log shows `CreateFileA opens data-pc.zip access 0x80000000 share 0`, i.e. the game opens the archive exclusively, which is why a hard link broke the second instance. With `share_zip=1` the hook adds `FILE_SHARE_READ` (`-> FILE_SHARE_READ added` in both instances): two instances ran on one hard-linked 2.7 GB file, both reached a stable world, and the bot solve plus state diff were identical. A lab slot now costs about 40 MB instead of 2.7 GB.
+- **Shared zip:** the hook log shows `CreateFileA opens data-pc.zip access 0x80000000 share 0`, i.e. the game opens the archive exclusively, which is why a hard link broke the second instance. With `share_zip=1` the hook adds `FILE_SHARE_READ` (`-> FILE_SHARE_READ added` in both instances): two instances ran on one hard-linked 2.7 GB file, both reached a stable world, and the bot solve plus state diff were identical. A test slot now costs about 40 MB instead of 2.7 GB.
 - Suite additions: after every scenario, real saves untouched, redirect fired and wrote files, frame cap in force; a new mutant (`cap_fps=0`) that must read as uncapped.
 
 ## Phase 2: input, teleport and screenshots without a focused window (2026-10-22)
@@ -179,7 +179,7 @@ How the game takes input (build 11370412; addresses are module-relative; all rea
 - **Mouse motion** is raw input: `GetRawInputData` is called for each `WM_INPUT` (real records have device handle 0 and size 48). Our proxy posts `WM_INPUT` to the game window with a private handle (`0xC0DE00xx`) and answers the game's `GetRawInputData` call for that handle with a synthetic record; this works with the window unfocused. Looking: 0.0025 rad per count. Puzzle cursor: 3.6 counts per pixel.
 - **Keys and mouse buttons are not raw input.** A real `SendInput` click produces no raw button record at all, and no raw keyboard record. They are ordinary messages (`WM_KEYDOWN`, `WM_CHAR`, `WM_LBUTTONDOWN`, ...) taken by a second message pump (`PeekMessageA` call site `exe+0x345aca`, called each frame) and handled inline by a jump table at `exe+0x345bc0`; the window procedure (`exe+0x37aea0`, found by hooking `RegisterClassExA`) ignores them. So the proxy posts those messages (`lParam` as the OS builds it; clicks at the window centre).
 - **Two gates.** (1) The key and button handlers start with `cmp BYTE [input_manager+0xE5C], 0 / je skip`, where `input_manager = [[exe+0x469A060]]`; the byte is cleared when the window loses activation, so injected keys and clicks are dropped until it is 1. Mouse motion does not check it. (2) The main loop does `Sleep(100)` (about 10 fps; found by logging every `Sleep` call and its caller, `exe+0x69845`) when the byte at `exe+0x62D394` and byte `+0x21` of the window object `[exe+0x469A5B0]` are both 0; `+0x21` is the window's "active" state, set by `WM_NCACTIVATE`/`WM_ACTIVATEAPP` with `wParam == 1`. `force_active=1` writes both bytes to 1 every frame in the `Present` hook.
-- **Side effect that had to be fixed:** believing it is active, the game moved the REAL cursor to the window centre every frame (`SetCursorPos`) and clipped it to a 2x2 box (`ClipCursor`), locking the owner's mouse; noticed by comparing `GetCursorPos` and `GetClipCursor` with the window rectangle. With `force_active=1` the proxy now no-ops `ClipCursor`, `SetCursorPos`, `SetCapture`, `ReleaseCapture`, `ShowCursor` and answers `GetCursorPos` with the window centre (a virtual cursor); the suite checks that the clip rectangle stays the full screen.
+- **Side effect that had to be fixed:** believing it is active, the game moved the REAL cursor to the window centre every frame (`SetCursorPos`) and clipped it to a 2x2 box (`ClipCursor`), locking the real mouse; noticed by comparing `GetCursorPos` and `GetClipCursor` with the window rectangle. With `force_active=1` the proxy now no-ops `ClipCursor`, `SetCursorPos`, `SetCapture`, `ReleaseCapture`, `ShowCursor` and answers `GetCursorPos` with the window centre (a virtual cursor); the suite checks that the clip rectangle stays the full screen.
 - **Teleport:** writing the camera position does nothing (the game recomputes it); writing the player entity `0x1E465` position (`+0x24`) moves the player and the camera follows, 1.69 above the feet. `tp x y z yaw pitch` holds it for 12 frames. A real `W` held 3 s walked 9.1 m; the injected `W` did the same once the gate byte was held.
 - **Screenshots:** the proxy copies the back buffer in `Present` to a staging texture and writes a top-down BMP (`shot <name>`), also while the window is unfocused or covered; `tools/bmp2png.py` converts it.
 
@@ -201,62 +201,178 @@ What the simulator found that the real two-game suite had not:
 
 Not covered by T0: the real game's memory layout and timing (the `GameWorld` adapter in `state.cpp`), only the T2 suite checks that. The T2 suite was re-run on the refactored build (see the QA section of the README).
 
-## Derived (not tested)
+## Derived
 
-- Player position and panel/entity state are reachable from outside the process, and the community already finds them by signature scan, so a mod can be an external or injected process without source.
+- Player position and panel/entity state are reachable from outside the process, and the community already finds them by signature scan, so a mod can be an external or injected process without source. (Confirmed: the mod is an injected proxy DLL.)
 - Sig scans tolerate patches better than fixed addresses, but this build's hashes above are the only ones tested.
-- Co-op here means: show a second player (puppet), share which panels are solved and which doors are open, probably host-authoritative.
+- Co-op here means: show a second player (puppet) and share progress (solved panels, open doors, power, cables). The prototype treats these as monotonic events, so there is no host and no authority rule; reversible state would need one.
 
 ## Guesses
 
-- The randomizer's panel-state offsets are likely reusable for syncing solved state.
 - Puzzles are likely deterministic from the entity table, apart from the random-door and challenge sections.
 
 ## Unknowns
 
 - Engine family and whether it has any networking code.
 - Whether any script layer exists inside `data-pc.zip`.
-- How a puppet player can be drawn: moving a panel entity's position does not move it on screen; a D3D11 overlay from the proxy DLL works (see below); other entity types were not tried.
-- How panel solving is represented in memory and in saves (randomizer `Panels.h` lists entity ids; `POWER`/`TARGET` fields look relevant), and how saves are written.
 - Whether `witness64_d3d11.exe` has debug symbols or a known pdb.
 - Whether the GOG/Epic builds differ from the Steam build.
 - How the Archipelago client reads the game.
+- Power-off switching, cables other than the one tested, `:slider_cable` bridges, plates, lasers, a real network and more than two players: not implemented or not tested.
+- Whether any door closes in normal play (the save-reload heuristic would misread it as a load).
 
 ## Next
 
-1. Runtime-verify the static results against a running copy: read camera position and one panel's `POWER`, compare with what the game shows.
-2. Copy the install into `local/` and run in the copy only.
-3. Finish research (Nexus, ModDB, Reddit, Discord) and ask the owner before any account use.
-4. Decide hook style (external process vs injected DLL) with `coop-reverse-engineer`.
+1. Extend sync to the other cable-driving panels, plates, lasers and bridges, one natural solve and state diff each; define authority for reversible state.
+2. A real network (direct IP or relay), then lag and loss runs.
+3. More puzzles in the suite (so far three tutorial puzzles).
+4. Occlusion and a real puppet model.
+5. Finish the unchecked searches (Nexus, ModDB, Reddit, Discord).
 
-## 2026-10-22: acknowledged state application retries
+## Phase 4: sync beyond the first puzzle (2026-10-22)
 
-See [session evidence](notes/2026-10-22-yellow-falcon-settles.md): witness-coop `bfe1b7e` retains acknowledged panel/door events when the game adapter is temporarily unavailable. Deterministic regressions and discard-on-failure twins prove retries without another packet, independent progress and no echo; 500 fuzz sessions and 10 existing twins pass. Real-game startup failure and baseline attempts are recorded separately there.
+Each item below is a witness-coop commit with a real-game scenario and a mutant, plus game-free (T0) tests.
 
-## 2026-10-22: real-game restart catch-up verified
+### Retain acknowledged events until the game applies them
 
-Witness-coop `df7b276` adds selective peer restart and a catch-up scenario plus mutant. After the first solve is delivered and acknowledged, a fresh B process recovers one solved panel and ten open doors from surviving A; disabling full-state resend leaves exactly the panel and its door missing. Both targeted scenarios passed, including save/cursor/frame-cap checks. See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-real-game-restart-catch-up). First-time late join and same-process reloads remain untested.
+Implementation: witness-coop commit `bfe1b7e`.
 
-## 2026-10-22: second tutorial door now syncs
+#### Observations
 
-Witness-coop `cfb67a0` adds an in-process Tutorial Bend bot and fixes the detector's missing table slot zero. The fresh pre-fix
-check failed: two panels solved on both sides, door zero open only on A. After the fix, the targeted clean and skip-zero-mutant
-scenarios both pass (final command exit 0): clean matches 2 panels/11 doors; mutant loses only the second door on B. Save/cursor/
-frame-cap checks pass and all resources are released. T0 and the DLL build pass.
+- `SyncCore::onPacket` acknowledges ordered events when queued, before the render thread applies them. Previously `applyRemote` removed events even when the entity was absent or `applyDoorOpen` returned false; the latter also incremented applied counters and installed an echo guard for a refused call.
+- Added a deterministic, game-free receiver regression (`proxy/core/tests/apply_retry.cpp` in witness-coop). Before the fix, missing-panel, missing-door and refused-door cases failed; wrong-type rejection passed.
+- After the fix, all four cases pass. Each retry case catches a `noApplyRetry` twin. They check ACK-before-application, convergence without another packet, unrelated-door progress, accurate applied counters, and no local echo after success.
+- `make -C proxy/core test`: deterministic regressions pass, 500 clean fuzz sessions pass, all 10 existing fuzz twins caught. `make -C proxy`: DLL builds. `git diff --check`: clean.
 
-The new graph probe and native disassembly also correct an earlier target interpretation: stored target IDs subtract the entity
-manager's base ID (observed 1) before table lookup. The first panel's target names its door after this normalization, rather
-than the adjacent Inanimate previously inferred. See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-second-tutorial-puzzle-exposes-skipped-door-zero). Cables and powered panels remain unimplemented.
+#### Derived
 
-## 2026-10-22: panel power-on progression implemented
+- Transport reliability alone does not guarantee state application: the receiver must retain responsibility for an acknowledged event until its game adapter succeeds.
+- Retries make at most one attempt per queued event per frame, within the existing 1,024-event receive bound. These panel/door changes are monotonic and independent, so a temporarily unavailable entity need not block another entity.
 
-Witness-coop `9799af8` adds a reliable panel power-on effect, native render-thread applier (`exe+0xC2890`), separate echo
-guard and restart snapshot support. A natural black/white tutorial solve at `0x18AF` now activates `0x1B` on both games while
-keeping that target unsolved. The new real-game clean scenario also replaces B with a fresh process after the original events
-are acknowledged; both worlds match 2 solved panels, 10 open doors and 238 powered panels after catch-up. The disabled-power
-mutant leaves only `0x1B` unpowered on B. Both scenarios pass (exit 0), including save/cursor/frame-cap checks, and resources
-are released. New power T0 regressions, four twins, protocol compatibility controls, existing application regressions and the
-500-session fuzz suite with all ten original twins pass. DLL build passes.
+#### Unknowns
 
-Protocol v2 adds the new event vocabulary; both peers need the updated DLL. Power-off switching and cables remain unsupported.
-See [session evidence](notes/2026-10-22-yellow-falcon-settles.md#follow-up-panel-power-on-progression).
+- No real-game missing entity or refused call has been induced; these failure modes are simulated at T0.
+- First real-game baseline attempt failed during startup: A never logged the overlay patch or networking startup, bot entity lookup returned an unreadable table, and measured 0 fps. B reached the stable-world gate. Save hashes, redirect and cursor checks passed; the suite released its slots. A second fresh baseline attempt passed: one solved panel and ten open doors identical in both games, no echo from B, no resends, 30.0 fps, save hashes/redirect/cursor checks passed, slots released. The first startup failure did not recur; its cause remains unknown.
+
+### Follow-up: real-game restart catch-up
+
+#### Observations
+
+- Reviewed the hub's world-state build order (`playbook/how-coop-mods-work.md`, stage 4), effect capture and desync guidance. Chose the missing real-game join/rejoin check: full-state resend already exists, but only the game-free simulator covered it.
+- Added selective `tools/restart.sh B` / `tools/install.sh B`; the surviving A process, config and loaded DLL are preserved. Newly launched processes are registered immediately rather than after both launches finish.
+- Added clean and disabled-catch-up mutant scenarios. Preconditions read both worlds from memory and require the original solve to have reached B and all sender events to have been acknowledged. After B restarts with `-new_game`, A must retain its PID and state and B must have a new PID and complete census. The clean case requires the whole solved/open state to match and no B echo; the mutant specifically requires the first panel and its door to be missing on B.
+- `bash -n tools/restart.sh tools/install.sh`, Python compilation, DLL build, and T0 (application regressions, 500 clean fuzz sessions, all ten fuzz twins) pass. Real-game `tools/qa.sh 'restart catch-up'`: both scenarios PASS. Clean restored one solved panel and ten open doors, with no echo. Mutant left exactly panel `0x64` and door `0x34eda` missing on B, after the original two events had been acknowledged. Both runs kept real save hashes unchanged, redirected instance saves, left the cursor free and measured A at 30.0 fps. All leased games were released. Implementation: witness-coop `df7b276`.
+
+#### Derived
+
+- Restarting a receiver only after the original events are acknowledged distinguishes snapshot catch-up from retransmission of outstanding deltas.
+
+#### Unknowns
+
+- Real-game first-time late join, same-process save reload and WAN behavior remain untested.
+
+### Follow-up: second tutorial puzzle exposes skipped door zero
+
+#### Observations
+
+- Read Tutorial Bend `0x182` using the panel graph offsets from [witness-randomizer Memory.cpp](https://github.com/jbzdarkid/witness-randomizer/blob/master/Source/Memory.cpp), build branch `GLOBALS == 0x62D0A0`: positions at `+0x3C0`, flags `+0x3C8`, connections `+0x3D0/+0x3D8`, counts `+0x3B4/+0x3B8`. Three nodes: `(0.8,0.25)`, `(0.8,0.75)`, `(0.2,0.75)`, connections `0-1`, `1-2`.
+- Standing camera command `tp -182.71 -164.90 3.727 0.303 -0.066` sees the puzzle screen head-on. The actual eye settles at z about 3.896 on the floor. A proxy back-buffer shot shows the start circle at `(1016,640)` in 1920x1080; entering aiming mode initially puts the cursor at `(960,540)`.
+- Free cursor placement uses 112 counts right and 200 down at this viewport. A short constrained trace stopped before the end; 40 frames of `(0,-18)` then 40 of `(-18,0)` reaches both segment ends. Clicking finishes the natural solve.
+- Memory after the solve: A and B both contain solved panels `0x64` and `0x182`; A has 11 open doors, B 10. The only difference is door ID `0x0`, open only on A. `tools/state_diff.py` exited 1 with exactly that difference.
+- Root cause in `proxy/state.cpp`: the entity scan starts at ID 1. The read-only census starts at 0 and finds 327 doors, while the adapter sees 326. `GameEntity(0)`, packet validation and the door-call bridge otherwise accept zero.
+- Added `wbot2.py`, shared `wcontrol.py`, read-only `wpanel.py`, and a second-tutorial suite scenario that requires both panels solved plus both specific doors open. A skip-zero mutant must retain the second panel solve on B but lose door zero. The fresh pre-fix clean scenario FAILed with exactly door zero missing on B, while both bots reported solved from memory. The mutant also reproduced that same missing-door state. The scanner fix includes table index zero by default, and `skip_entity_zero=1` restores the old scan for the mutant. Post-fix clean/mutant state checks both PASS: clean has 2 panels and 11 doors on both sides, no B echo; mutant has both panels but lacks only door zero on B. Save hashes, redirect, free cursor and 30.0 fps checks pass; no games/leases remain. The wrapper unexpectedly returned 1 after ALL OK; a repeat with scripts left unchanged returned 0, with both scenarios PASS and all resources released. The earlier status mismatch did not recur; cause unknown. Implementation: witness-coop `cfb67a0`. Shell syntax, Python compilation and whitespace checks pass. DLL build and all existing T0 tests pass.
+
+#### Derived
+
+- Table index zero is valid in this build; zero cannot be used as a table-index sentinel during census. The mod/probes call these normalized table indices entity IDs; the game's stored engine IDs use the separate base described below.
+- Correction to the earlier target-type interpretation: this repo's event IDs and probes use entity **table indices**, while the game's target fields hold engine IDs. Read `table_base_id = u32([base+0x62D0A0]+8)`, observed `1`. At `exe+0xB9F00`, the game reads panel `+0x2B4`, subtracts this base ID, indexes `[globals+0x18]`, checks the Door descriptor, and calls `exe+0x8E4B0`. Thus target `0x34EDB` means table index `0x34EDA`, and target `1` means table index zero. The earlier notes' claim that the first target is an Inanimate at index `0x34EDB` was a namespace error. `wpanel.py` now reports both raw target and normalized table index.
+
+#### Unknowns
+
+- Cables and powered-panel replication remain unimplemented. The second tutorial panel is another door gate, so it first exposed this earlier correctness gap.
+
+### Follow-up: panel power-on progression
+
+#### Observations
+
+- A read-only target census found a simple already-powered tutorial panel at table index `0x18AF`, raw target `0x1C` = target table index `0x1B` (Machine_Panel, initially requested and visible power both zero). Its 7-node graph has a middle horizontal route that separates the black and white squares.
+- Natural proxy input solve: teleport above the standing point `(-158.745,-69.925,10.0)`, yaw `2.749`, pitch `0.003`; the eye settles at z `6.7143`. Enter aiming, 80 counts left to the start, click, 40 frames of +18 x, click finish. A source solve lights up target `0x1B` on A; B gets the solved source but leaves its target at `(0,0)` power. In-game shots show the second panel lighting on A. Real save hashes unchanged across the research session; slots released.
+- A first long teleport at ground height was displaced by collision resolution. Arriving above the ground works; the new bot checks the actual camera position and retries up to three times before failing.
+- Disassembly of build 11370412 at `exe+0xC2890` takes a panel pointer, sets requested power `+0x2A4` to `1.0`, handles redraw/randomization and linked doors. Visible power `+0x2A0` follows in the normal game loop. The applier type-checks Machine_Panel and checks the function prologue, then calls this on the render thread.
+- Added deterministic power-on core tests; both live sync and restart recovery failed before the new event. After implementation they pass, including dropped first sends, refused calls held past the echo interval, no echo, and ensuring a powered target is not marked solved. Disabled-power, no-apply-retry, no-echo-guard and no-resync twins are caught. Existing application regressions plus 500 clean fuzz sessions and all ten old fuzz twins pass. DLL build passes.
+- New event kind 3 shares panel power-on via the reliable queue and full-state snapshots. Power state is part of the stable-world signature and has its own echo guard. The wire magics are v2 (`WTP2`, `WTE2`, `WTA2`) to avoid an older receiver silently skipping the new vocabulary. Both copies must use the updated DLL.
+- Real-game `tools/qa.sh 'panel power chain'`: clean and disabled-power mutant both PASS, command exit 0. Clean also restarts B after all original events are acknowledged: both worlds match 2 solved panels, 10 open doors and 238 powered panels. The target remains unsolved, B emits no power echo and applies one power event. The mutant preserves both solved panels and doors but has 237 powered panels on B, missing only `0x1B`. Save hashes, instance save redirect, free cursor and 30.0 fps checks pass; own games and slots released.
+- Protocol compatibility fixture: checksummed v1 event and pose are ignored, while matching v2 controls are accepted. All power tests and the existing 500-session fuzz/twin suite pass. Implementation: witness-coop `9799af8`. Python compilation and `git diff --check` pass; final DLL rebuild passes.
+
+#### Derived
+
+- Reading requested power for detection catches the discrete activation while letting each engine animate its visible brightness. The real-game assertion requires both requested and visible power to reach 1.
+
+#### Unknowns
+
+- This adds power-on progression only, matching the existing solved/open progression model. Power-off switching, conflict/authority rules for reversible state, and cable sync remain unimplemented.
+
+### Follow-up: first-time late join
+
+#### Observations
+
+- Added scenarios `late join` and `MUTANT: late join without snapshot` (`tools/suite.py`, `late_join`). Only A is started (`restart.sh A`; `restart.sh` now tolerates a peer with no pid file). The bot solves panel `0x64` on A while B does not exist, then B is started for the first time with `restart.sh B`.
+- A runs with `no_resend=1`, so the original events are sent once into the void and are never retransmitted; only the full-state snapshot sent when A first sees B's session can deliver them. The mutant adds `no_resync_on_restart=1`.
+- Real-game result (witness-coop, `tools/qa.sh 'late join'`, exit 0): clean B matches A in memory (1 solved panel, 10 open doors, 237 powered, 594 entities) with no echo; mutant B has 0 panels and 9 doors, lacking exactly `0x64` and `0x34eda`. Save, cursor and 30.0 fps checks pass; slots released.
+
+#### Derived
+
+- First contact and restart share one code path (`peerSession_` increases, snapshot flag set), so late join is covered by the same protection; the mutant flag name says "restart" but gates both.
+
+#### Unknowns
+
+- Late join with the default resend behaviour (events resent into a starting B) was not isolated. Same-process reload and WAN untested.
+
+### Follow-up: same-process save reload
+
+#### Observations
+
+- The pause menu is keyboard-drivable through the in-process input (Esc, S, S, Enter = "Load a Game"; the newest save is selected). New `tools/win/wreload.py` does this with no focus or desktop input.
+- The game keeps one save file per session and rewrites it in place; opening the pause menu also saves. A first reload therefore loaded the current state and changed nothing. The scenario backs up B's first save (written about a minute after launch, before any progress), restores it after Esc and before the list is read, then loads it. `restart.sh` now empties each instance's own save folder so there is one known save.
+- Before the fix (real game, manual then scripted): B reverted to 0 panels / 9 doors and stayed there; A had no reason to resend (no session change, all events ACKed). An earlier load with a stale save also emitted the load's start-up door openings and a power event from B as local events, which A applied (A showed 6 extra open doors).
+- Fix in `sync_core.cpp` (`reloadSeen`): a known open door closing, or two or more known panels unsolved (one panel can be redrawn), is read as a load. The core goes back to the stable-world gate, bumps its session (the peer then resends its full state, as for a restart), clears its stream and echo suppressions, and publishes its own full state once stable, so start-up transients are folded into the baseline. Twin: `no_reload_sync=1` / `Flags::noReloadSync`.
+- T0: new `proxy/core/tests/reload_sync.cpp` (older save, second reload, progress only in the save, each with the twin caught); it failed before the fix. 500 fuzz sessions and the 10 existing twins pass; DLL builds.
+- Real game, `tools/qa.sh 'same-process'`: clean B loses and then regains panel `0x64` and door `0x34eda` (log shows "save reload suspected"), no process restarted, B emitted no events, both worlds identical; mutant B stays without both. Full `tools/qa.sh` afterwards: 17 scenarios ALL OK, exit 0. Save, cursor and 30.0 fps checks pass; slots released.
+
+#### Derived
+
+- A same-process load has no session signal, so progress regression is the only evidence available; the heuristic could misread a real door that closes.
+
+#### Unknowns
+
+- Whether any door in the game closes in normal play (would trigger a spurious re-gate and resync: harmless but wasteful). Session is bumped by 1, so a real restart in the same second as a reload could be ignored by the peer. Loading a different save slot or a save from another session is untested.
+
+### Follow-up: cables
+
+#### Observations
+
+- `Power_Cable` has 268 entities; 167 panels target a cable. All are mazes of 26+ nodes except none reachable by the older bots. Panel `0x293` (5x5 grid, 26 nodes, target cable `0x349`, powered, a plain maze with start flag `0x2` and end flag `0x1`) is 3 m from spawn and has a visible black cable that glows yellow once solved.
+- Natural solves of `0x64` and `0x18af` change no cable word in either game. A natural solve of `0x293` changes exactly one cable in the whole world on A: `0x349` `+0xC4` and `+0xC8` go 0 -> 1.0 (two other cables are lit from the start). B stays 0. Other A-vs-B cable differences (`+0x18c`, pointers) are per-process load state, not solve state.
+- The game's target dispatcher is `exe+0xC24F0(target id, source entity)`: it switches on the target's type descriptor (Gauge, Pressure_Plate, Machine_Panel -> `0xC2890` then writes the source id to the target's `+0x2C8`, Multipanel, Power_Cable -> `0x175EE0(cable, 0)`, Door -> `0x8EB60`, Light, Laser, Marker and others). `0x175EE0(cable, 0)` lights the cable. The loop over `Power_Cable` children in the panel update at `exe+0xB9E00..` only handles cables tagged `:slider_cable` (sliding bridges), not this chain.
+- Panel input: head-on at 3 m (stand = panel position + 3 * (cos rz, sin rz), yaw = rz + pi, rz = 2*atan2(qz, qw) from the panel quaternion at `+0x34..+0x44`, eye z equal to the panel z; a teleport above ceiling height lands elsewhere). The panel spans about 222 px per unit of its 0..1 coordinates, the cursor starts at the screen centre and free motion is 2 counts per pixel. A constrained trace lags at corners, so the bot sends 16-count steps and reads the traced-node count at panel `+0x228` (it counts the start; the end stub does not add to it). Closed loop on that count replaces distance guessing.
+- Implementation (witness-coop): event kind 4 (cable lit), protocol v3 magics, `GameCablePowerOnNow` (type and prologue checked, render thread), core detection with the same start-up and cascade gating as panel power, echo guard, retry, snapshots; `Flags::noCableSync` / `no_cable_sync=1`. T0: new `cable_sync.cpp` failed before the change; clean, restart-recovery and four twins pass; 500 fuzz sessions and 10 twins pass; DLL builds. `wbot_maze.py` solves any plain maze by BFS; `wstatedump.py`/`state_diff.py` report lit cables.
+- Real game, `tools/qa.sh 'cable maze'`: clean A and B match on solved panels, powered panels (238) and lit cables (3), B emits no cable event, and a fresh B recovers the lit cable after the events were ACKed; the mutant leaves exactly `0x349` dark on B. Save, cursor and 30.0 fps checks pass. Full `tools/qa.sh` afterwards: 19 scenarios ALL OK, exit 0.
+
+#### Derived
+
+- Calling the dispatcher on the solved panel would replicate every target type, including the `+0x2C8` source back-link our panel power path does not set; only door and cable targets are covered by dedicated events today.
+
+#### Unknowns
+
+- The other cable-driving panels, `:slider_cable`, cable power-off, and what `+0x2C8` and the `+0x37c` flags do visually. Whether the cable glow also needs the source panel's trace shown on B. Screenshots of B at the cable were not compared (B's streaming did not load that area after a teleport); the assertion is on memory.
+
+### Random packet loss (T2)
+
+- witness-coop `proxy/coop.cpp`: config keys `drop_pct` and `drop_seed` (deterministic LCG per seed) drop outgoing datagrams in the send hook only.
+- `tools/suite.py`: scenario "30% random packet loss" (A seed 7, B seed 11, must be identical) and "MUTANT: no resend + 30% random loss" (must diverge).
+- Ran: `make -C proxy/core test` (ALL OK), `make -C proxy` (builds), `tools/qa.sh random`: both PASS (loss baseline identical, A resent 21; mutant: 2 differences).
+- Caveat: the mutant's divergence depends on which datagrams the seed drops. Deterministic per seed, but packet timing still varies, so this is one run. Flakiness over repeated runs: `unknown`.
+
+### Second panel for the T2 bot (resolved)
+
+An early attempt to script the second tutorial panel (`0x182`) stalled: with the panel's facing and the start circle unknown, four teleported views showed no puzzle screen. Reading the panel graph (positions, flags and connections at `+0x3B4..+0x3D8`, as the randomizer does) and a back-buffer screenshot of the head-on view fixed this; the second-puzzle section above (Follow-up: second tutorial puzzle) records the working bot and the door-zero bug it exposed.

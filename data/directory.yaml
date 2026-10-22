@@ -7594,8 +7594,8 @@
   notes: Dev preview, not playable with friends yet (no installer or release; localhost only). A proxy AnselSDK64.dll loaded by the game hooks Direct3D 11 Present
     and draws the other player as a puppet; two game copies exchange camera pose over UDP. Solving a panel in one game marks it solved in the other and opens
     the gated door by calling the game's own door function (events are numbered, acknowledged and resent). Tested on two tutorial door puzzles and one panel power-on chain, Steam build 11370412.
-    Panel power-on progression uses a separate reliable event and survives peer restart; power-off switching, cables, plates, lasers and bridges remain unsynced. QA is an in-process bot (no focus, no desktop input) with a state diff over all panels and doors
-    and the original baseline/loss/mutant scenarios plus targeted peer-restart catch-up and second-door and panel power-on checks. Coverage remains narrow, three tutorial puzzles (see games/the-witness). No other co-op work
+    Panel power-on progression and one cable lit by a tutorial maze use their own reliable events; a fresh or reloaded game resyncs from its peer. Power-off switching, other cables, plates, lasers and bridges remain unsynced. QA is an in-process bot (no focus, no desktop input) with a state diff over all panels and doors
+    and baseline, loss, mutant, peer-restart, late-join, save-reload, second-door, power-on and cable scenarios. Coverage remains narrow, three tutorial puzzles (see games/the-witness). No other co-op work
     was found; the MIT-licensed witness-randomizer and witness-trainer, which read and write the running game, were the starting point.
   sources:
   - https://github.com/TommoDotCommo/witness-coop

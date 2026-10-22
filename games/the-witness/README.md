@@ -5,15 +5,17 @@
 | Engine | In-house engine (Thekla). Family not confirmed: `detect_engine` matched no signature |
 | Versions tested | Steam build `11370412` (app `210970`), `witness64_d3d11.exe` SHA-256 `8d672d444df6a6df7130f25a517bdab1af92731fe2138dc5b324d519561d55a5`, Windows |
 | Projects | [witness-coop](https://github.com/TommoDotCommo/witness-coop) (MIT, dev preview). Related tooling: [witness-randomizer](https://github.com/jbzdarkid/witness-randomizer) (MIT), [witness-trainer](https://github.com/jbzdarkid/witness-trainer) (MIT) |
-| QA level | automated (narrow: two tutorial doors and one panel power-on chain, localhost, see QA) |
+| QA level | automated (narrow: three tutorial puzzles, localhost, see QA) |
 | Last updated | 2026-10-22 |
 
 ## Where things stand
 
 No other co-op for The Witness was found. [witness-coop](https://github.com/TommoDotCommo/witness-coop) is a dev-preview prototype that runs on one PC with two copies of the game:
 each player sees the other as a puppet drawn through a Direct3D 11 overlay, and when one player solves a panel the other
-game marks it solved and the door it gates opens, started by the game's own door function. Panels and doors are synced
-for all 594 panels and 327 doors; the first two tutorial door puzzles and a black/white tutorial power-on chain have automated natural solves and state comparisons. Panel power-on progression now syncs separately from solved state. Cables, power-off switching, lasers, plates and bridges remain unsynced.
+game marks it solved and the door it gates opens, started by the game's own door function. The detector watches all 594
+panels and 327 doors, but only three tutorial puzzles have automated natural solves and state comparisons: the first two door
+puzzles and a black/white puzzle that powers a following panel. Panel power-on progression syncs separately from solved state,
+and one cable (lit by a tutorial maze) is verified. A fresh peer (restart or first-time late join) and a same-process save reload both resync from the other game's state. Power-off switching, other cable types, lasers, plates and bridges remain unsynced.
 
 ## Existing work
 
@@ -63,7 +65,7 @@ echo guard. The source is in [witness-coop](https://github.com/TommoDotCommo/wit
 
 A scripted suite (`tools/qa.sh` in witness-coop) restarts both games, has a bot play player A through the mod's in-process control
 (no window focused, no desktop input: teleport to the first panel, aim, click to enter it, trace the line, click to finish), and compares the solved panels and open doors
-read from both games' memory. Last run (2026-10-22, one machine, localhost, build 11370412); two agents also ran the baseline at the same time, beside an MDK2 agent, with no collision and no window ever taking the owner's focus:
+read from both games' memory. Last run (2026-10-22, one machine, localhost, build 11370412); two agents also ran the baseline at the same time, beside an MDK2 agent, with no collision and no window ever taking the player's focus:
 
 ```
 baseline                                 PASS   identical (1 panel, 10 doors); B sent nothing back; real saves and mouse untouched; game at 30 fps
@@ -113,8 +115,9 @@ mutant has 237 powered panels on B, missing only the target `0x1B`. Both keep th
 free cursor and 30.0 fps checks pass; no leased games remain. Checksummed v1 event/pose rejection also has T0 coverage with
 v2 acceptance controls.
 
-Not tested: a real network, more than two players, puzzles beyond the first two tutorial doors and the first black/white tutorial power-on chain, or other gate types, a first-time late join into a game
-that already has progress, same-process world replacement or loading a save, fullscreen, non-16:9 windows.
+Verified so far: the first three tutorial puzzles (two door gates and one black/white power-on chain), one cable maze, 30% seeded random loss on localhost, peer restart, first-time late join and a same-process save reload, each with a mutant that must fail.
+
+Not tested: a real network, more than two players, any other puzzle, other cable or gate types, WAN, fullscreen, non-16:9 windows.
 The probes and test scripts are in witness-coop.
 
 ## How to play
@@ -123,17 +126,16 @@ Not playable together yet (prototype only, two copies on one PC). There is no in
 
 ## Known issues
 
-- Solved panels, opened doors and panel power-on progression are synced. Power-off switching, cables, plates and lasers remain unsynced. Reversible state still needs an authority/conflict policy.
+- Solved panels, opened doors, panel power-on progression and one verified cable are synced. Power-off switching, other cable types, plates, lasers and bridges remain unsynced. Reversible state still needs an authority/conflict policy.
 - The puppet is a flat rectangle with a facing dot; it shows through walls (no depth test).
-- Replacing a world in the same process (loading a save or starting a new game) remains unhandled. Restarting one process into a fresh new game has automated catch-up checks for the first door and the black/white power-on chain.
+- Same-process save reload is detected by a heuristic (a known open door closing, or two or more known panels unsolved) and resynced; a game where doors close in normal play would trigger a harmless extra resync. Loading a different save slot is untested.
 - Test hazard for the next agent: the game keeps saves in `%APPDATA%\The Witness` whatever
-  folder the exe runs from. Starting a New Game from a copied install rewrote the owner's
+  folder the exe runs from. Starting a New Game from a copied install rewrote the player's
   latest existing save and settings file there. Back up and hash that folder first.
 
 ## Next steps
 
-1. Extend the verified panel power-on progression to cables, power-off switching, plates, lasers and bridges. Check each with a natural solve and a state diff; define authority for reversible state.
-2. Real networking (Steam relay or direct IP), then random loss and lag runs with the chaos tool.
-3. First-time late join and saves: extend the verified peer-restart catch-up to same-process world replacement and define what happens when worlds differ.
-4. Occlusion and a real puppet model instead of a flat rectangle.
-5. Widen the suite to more puzzles and gate types and keep the QA level honest; add an installer and a release; read the Archipelago client for another view of the same hooks; finish the unchecked searches.
+1. Extend sync to the other cable-driving panels, plates, lasers and bridges, power-off switching and more puzzles. Check each with a natural solve and a state diff; define authority for reversible state.
+2. Real networking (Steam relay or direct IP), then lag runs with the chaos tool (random loss is already covered on localhost).
+3. Occlusion and a real puppet model instead of a flat rectangle.
+4. Widen the suite to more puzzles and gate types and keep the QA level honest; add an installer and a release; read the Archipelago client for another view of the same hooks; finish the unchecked searches.
