@@ -151,6 +151,18 @@ A bug the move turned up: in the first baseline run from the new repo, player B 
 
 QA level: the suite meets the repo's definition of `automated` (a scripted harness that drives real game clients and checks shared state, with mutants), so the directory entry is set to `automated`. Its coverage is narrow (one puzzle, localhost), which the entry notes and the write-up say.
 
+## Running several copies and agents at once (2026-10-22)
+
+Measured on the owner's PC (31 GB RAM, 16 logical CPUs, two monitors, build 11370412), to plan three agents per game:
+- Memory: each running Witness takes about 1.8 GB resident (a pair 3.6 GB); the install is 3.9 GB on disk (2.7 GB `data-pc.zip`, 1.4 GB `data/videos`).
+- Speed: the frame counter at `base + 0x63954C` (build 11370412, from the randomizer's Memory.cpp) advanced at 724 fps with the window visible, 724 fps when sent behind other windows without focus, and 10 fps when minimized. The game is uncapped, so many instances need a frame cap in the proxy.
+- Input: the exe imports `RegisterRawInputDevices` and `GetRawInputData` (plus `GetCursorPos`, `SetCursorPos`, `ClipCursor`, `SetCapture`), so keyboard and mouse reach it only through the focused window; the `SendInput` bot needs the desktop to itself.
+- Saves: the exe imports `SHGetFolderPathW` (no environment variable is involved), so every copy, and the owner's real game, share `%APPDATA%\The Witness`. Redirecting that call inside the proxy would isolate instances and protect the owner's saves; not built yet.
+- Hard links: a hard-linked `data-pc.zip` made the second concurrent instance fail (`error opening bundle file data-pc.zip`, then `fatal_error_data_corruption` in its log), while the first ran fine; everything else (exe, DLLs, `data/videos`) shares fine. So the zip is a private copy per slot; a slot then costs 2.7 GB plus about 40 MB. Whether the proxy could instead relax the file's share mode so one zip serves all instances is untested.
+- Windows Firewall prompts once per exe path and a cancelled prompt leaves a Block rule (the owner's `C:\coop\mdk2-test` has them); 32 narrow Allow rules (one per lab slot and game, inbound, from 127.0.0.1 only, only under `C:\coop\lab`) were created with one UAC approval.
+
+Result: a shared layer, `~/source/coop-lab` (`lab`: slot leases with a free-RAM guard, identity from the worktree folder, hard-linked instance pools on NTFS, per-agent ports and run folders, a desktop input lock, window tiles on the second monitor, path-scoped cleanup), and Witness tools that use it. Test with three agents at once (two Witness worktrees and one MDK2 checkout started in the same second, getting slots 4-5, 2-3 and 0-1): Witness baseline PASS twice, mdk2-coop's own QA 34 of 34, no collisions, nothing left running, base copy intact. Not covered yet: a full Witness suite from two agents (only the baseline ran), more than three agents, MDK2 in more than one agent with its own sweeps.
+
 ## Derived (not tested)
 
 - Player position and panel/entity state are reachable from outside the process, and the community already finds them by signature scan, so a mod can be an external or injected process without source.
