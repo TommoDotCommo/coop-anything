@@ -1262,3 +1262,20 @@ Derived: a [features] switch that takes an action's keys away (coop.BindAction) 
 Evidence: qa_launcher 32/32 (Interface switch and music level written), qa_menu 38/38 (Interface page
 screenshot), qa_emote 21/21 (MUTANT=nofeat caught), qa_cutscene 48/48 (cutscene box, timer and ghost switches,
 missile nose; MUTANT=sideways caught), qa_controls 40/40 (Skip cutscene on the Co-op page).
+
+## 2026-10-23: Esc skipped a co-op cutscene for one player; character collision distance
+Observations:
+- In a manual session the 112 s opening comic ended after 3 to 10 s with no skip vote logged. A key sweep
+  (W, E, F, Tab, Enter, Space, 0, keypad 0, both mouse buttons, Esc, Backspace, one at a time on the client,
+  StopScript wrapped to log) showed Esc: the engine handles COM_PAUSE itself (no comfuncs entry) and during a
+  movie it calls StopScript(Save.movietocancel). The script runner also calls StopScript when a script runs past
+  its last step, so the wrapper only turns a stop in the middle of the co-op movie, within 1 s of a key press,
+  into a skip vote.
+- Character collision: with the partner's puppet held d units from the standing host at 1-1 (moving the host
+  there each time), d >= 1 moved nothing; d <= 0.75 moved the host out to 0.88 apart, smoothly. The puppet was
+  kept 3 away, which players saw as the partner sliding off. Now 1. A host simply standing next to a puppet held
+  0.5 away was not moved at all, so only moving into an overlap triggers the push.
+- The skydive lands by itself when ktgame_timer's animation reaches its custom key: a test that waits must hold
+  that back.
+Evidence: qa_cutscene 49/49 (MUTANT=escskip caught), qa.sh 52/52 (MUTANT=overlap and magnet caught by the
+"partner right beside" check).
