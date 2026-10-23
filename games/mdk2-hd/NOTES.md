@@ -1241,3 +1241,24 @@ Results (later the same day):
 - Two installs at once can collide on the shared settings.lua (`sed: cannot rename ... Permission denied`).
 Evidence: tools/qa_cutscene.sh 42/42 with the table (banner "Cutscene 1:27 | Skip cutscene: 1 of 2 (Backspace)" on the
 first viewing of the lounge movie); measuring output in local/movies/.
+
+## 2026-10-23: every option in the launcher, an Interface page, the skip key as an action, the missile ghost's nose
+Observations:
+- mdkGobPointToXYZ(g, dx, dy, dz) takes a direction (not a point) and turns the model's +y that way: for
+  (0, 0, 10) it gave the quaternion (0.707, 0.707, 0, 0). The skydive's missile model (ktgame_missl0) has its
+  nose on +z, so a ghost turned that way flew on its side. Three still test missiles (no rotation; +x; +y,
+  screenshot) showed it: the unrotated one is a dot seen from above, nose up. The ghost now gets the rotation
+  from +z to its heading, written with a new bridge call (coop_set_quat; the engine's setter copies the
+  quaternion at gob +0x24 the same way).
+- The game has no master volume: three levels in settings.lua (chSndSetEffectsVolume, chSndMusicVolume,
+  chSndSetVoiceVolume, 0..1, default 0.25), and the game saves them from its own state, so scaling them in
+  Lua would compound on every save. The launcher edits those three lines (10% steps).
+- "sed: cannot rename ... Permission denied" when installs ran beside starting games: inject.sh's lock only
+  serialises installs; a game that is starting has settings.lua open and Windows refuses the rename. A copy
+  that failed there kept its old coop.lua and failed tests on code it did not have. inject.sh now retries.
+- The cutscene test's host died in the skydive once (a laser), which starts the death camera as new movies and
+  broke the end-of-skydive checks; the test now swaps the game's missile update for one that never hits.
+Derived: a [features] switch that takes an action's keys away (coop.BindAction) needs no change in the bridge.
+Evidence: qa_launcher 32/32 (Interface switch and music level written), qa_menu 38/38 (Interface page
+screenshot), qa_emote 21/21 (MUTANT=nofeat caught), qa_cutscene 48/48 (cutscene box, timer and ghost switches,
+missile nose; MUTANT=sideways caught), qa_controls 40/40 (Skip cutscene on the Co-op page).
