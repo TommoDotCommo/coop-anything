@@ -1279,3 +1279,16 @@ Observations:
   that back.
 Evidence: qa_cutscene 49/49 (MUTANT=escskip caught), qa.sh 52/52 (MUTANT=overlap and magnet caught by the
 "partner right beside" check).
+
+## 2026-10-23: a hero stuck in a wall after a switch; emote wheels per hero
+Observations:
+- Doc walked into the wall left of 1-1's start (x -39), then the switch to Kurt put Kurt on Doc's spot: Kurt could
+  not move in any direction. Placed 0.2 or more away from the wall he moved. Kurt (and Max) are wider than Doc.
+- Tried as a test of a spot: mdkAILineOfSight between the player and a probe character (reported clear even 2 units
+  into the wall, and differed by direction: facing, not walls); dropping the hero from 0.4 above the spot (a stuck
+  hero still falls). Neither tells a stuck spot. Going back 0.5 along the recent path did not help when Doc had slid
+  along the wall (0.17 away). What works: after a switch, while a move key is held and the hero has not moved, try
+  the spots around in turn (8 directions, 0.3 then 0.6); the first worked here.
+- Animations each hero has (om_anim_state on the player, ids 0-159): Kurt 61, Max 61, Doc 70. Max has no THROW (57),
+  Doc no ACTION05 (82): the shared wheel's slots logged "does not exist for this character".
+Evidence: qa_char 12/12 (MUTANT=nounstick caught), qa_emote 25/25.
