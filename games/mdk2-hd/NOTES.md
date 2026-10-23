@@ -1292,3 +1292,114 @@ Observations:
 - Animations each hero has (om_anim_state on the player, ids 0-159): Kurt 61, Max 61, Doc 70. Max has no THROW (57),
   Doc no ACTION05 (82): the shared wheel's slots logged "does not exist for this character".
 Evidence: qa_char 12/12 (MUTANT=nounstick caught), qa_emote 25/25.
+
+## 2026-10-23: regression takeover, private configuration and bounded QA lanes
+
+Observations:
+- The inherited sequential full ladder completed 31 gates: 28 passed. Controls failed
+  22 checks, the lossy projectile gate failed one movement check, and campaign
+  fixtures 3-10 and 3-11 reported client Lua arithmetic errors. Evidence:
+  `local/regression/20261023-163734-876744`, sweep `local/sweeps/20261023-171411-x4`.
+- The controls screenshot shows Interface where the test expected Controls: adding
+  Interface shifted the navigation by one item. The restart PID write was also
+  accidentally inside a shell comment. Both test defects have been corrected.
+- The lossy projectile's first client-3 snapshot contained an active grenade with
+  velocity; its second snapshot contained no grenade. The test failed because it
+  requires two positions, not because the captured positions were identical.
+- Five subprocess-based runner tests verify actual suite overlap, exclusive gate
+  barriers, busy-allocation rollback, malformed-allocation cleanup, conflicting
+  resource rejection and cancellation. All 31 Python tests passed after integration.
+- Workstation instructions and allocation commands have moved to ignored private
+  configuration. Public tooling uses documented environment variables and an
+  optional command/JSON resource interface; no particular local allocator is required.
+
+Derived facts:
+- An early movie GO path sets state to play without initialising tick_at, while
+  MovieTick subtracts tick_at from the clock. The affected campaign logs show the
+  early-GO message immediately before arithmetic errors. This is a strong candidate
+  for the campaign failures; a targeted reproducer/fix is still pending.
+
+Unknown:
+- Whether the lossy projectile movement check is consistently sampling too late.
+- Full parity and runtime of the new three-lane ladder; validation is running.
+
+Follow-up observations:
+- The three-lane full ladder passed 30/31 gates, including all 96 checkpoints, in
+  about 21 minutes. The sole failure was character-motion: later-level probes had
+  only 11-17 frames in a one-second sample (the oracle requires 20), and one jump
+  was missed. Sequential baseline evidence had passed. Character-motion is now an
+  exclusive gate; no motion assertion was lowered.
+- A subsequent three-lane selection passed character-motion (44 checks, 74 s),
+  HUD, native projectiles and lossy native projectiles. Motion ran alone before
+  the other three overlapped. The two projectile variants started in the same
+  second and produced distinct evidence directories after adding PID suffixes.
+- Native projectile snapshots are now captured as a short pair per client, with
+  clients sampled concurrently, so another client's shell round trips do not
+  consume the grenade's lifetime before the second snapshot. The same active,
+  foreign-projectile and position-change assertions remain in place.
+Evidence: `local/regression/20261023-171852-379664` (full),
+`local/regression/20261023-174024-204153` (exclusive motion plus simultaneous
+projectile variants).
+
+Deterministic movie-race validation:
+- Receiving MV_GO before MovieStarted formerly entered play with nil tick_at,
+  producing the same arithmetic errors as the earlier campaign fixtures. The
+  branch now calls the ordinary MovieGo initialiser. The focused two-game check
+  observes a positive elapsed clock, normal completion and no Lua errors.
+- The earlygo mutant restores the original branch and is caught by the clock
+  assertion, with the arithmetic errors also observed. An initial test assertion
+  accidentally matched the echoed command source; anchoring it to the actual
+  `lua:` log prefix fixed the false positive before accepting the mutant result.
+Evidence: `local/regression/movie-clock-20261023-174546` (positive 4/4; the mutant
+must fail the clock and no-error checks, and the negative harness reports caught).
+
+Fresh-resource sweep observation:
+- A campaign-only run with a newly created helper folder hit concurrent NTFS file
+  creation errors while shards copied PowerShell scripts. Install failure was then
+  ignored and the sweep booted stale configuration. The invalid run was cancelled;
+  all eight owned games and the lease were released.
+- Helper copying now takes a short lock, and a failed install stops a shard before
+  boot. A real-shell concurrency reproducer fails before the lock and passes after;
+  another shell test verifies that failed installation never boots a game. All 33
+  Python tests pass. A new fresh-folder campaign retest is running.
+Invalid-run evidence: `local/regression/20261023-174743-655439`.
+
+Final fresh-folder validation:
+- Campaign profile passed all seven gates, including all 96 checkpoints after
+  the movie-clock and helper-install fixes. All 16 resource slots were free after
+  cleanup. The final 33-test Python run, shell syntax, Markdown target checks and
+  tracked-file workstation audit pass.
+Evidence: `local/regression/20261023-175357-180407`,
+`local/sweeps/20261023-175423-761414-x4`.
+
+## 2026-10-23: separate private workstation configuration from public requirements
+
+Observations:
+- Workstation instructions, environment integration, allocation adapter and private
+  handover history now live in a separate private workspace. Ignored links keep the
+  existing checkout's generic configuration entry points working. A filesystem-only
+  setup helper attaches new worktrees and refuses to overwrite different configuration.
+- The public guides retain generic configuration, allocator protocol and executable
+  dependencies. Unnecessary workstation-specific setup prose has been removed.
+- Validation: all 33 repository Python tests and three private setup tests pass;
+  environment mapping, adapter permissions, symlinks, shell syntax, Markdown targets
+  and whitespace checks pass. No game tests were run for this configuration move.
+
+## 2026-10-23: full ladder before the public alpha, a hero stuck when the player waits
+
+Observations:
+- Full ladder with three lanes and four campaign shards on the release candidate: 30 of 31 gates passed, the
+  campaign (96 checkpoints) in 240 s. Controls and character-motion, which failed in earlier runs, passed.
+- character-wheel failed one check: after switching from Doc to Kurt at the wall in 1-1, Kurt did not move
+  (-39.09 124.64 before and after W, S and D). In the two earlier full runs he moved about 10 units, and the game
+  logged `character: unstuck at spot 1`; this time that line is missing.
+- The unstick time limit (4 s) started at the switch. The test switched, waited 3 s, read the position over a
+  command round trip, then pressed keys; with the other lanes running, the keys arrived after the limit.
+
+Derived facts:
+- A player who switches hero at a wall and waits more than 4 s before walking stays stuck. Fix: the limit starts
+  with the first held move key. The test now waits 6 s after the switch, past the old limit.
+
+Evidence:
+- Fixed code: character-wheel gate 12/12, Kurt -39.09 124.64 -> -29.42 126.11. `MUTANT=nounstick`: caught. The
+  previous code with the new test: the wall check fails. Mod commit 75998a7, released as v0.2.0-alpha.
