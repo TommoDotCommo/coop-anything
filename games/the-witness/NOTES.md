@@ -402,3 +402,31 @@ Replaced the flat puppet with a skinned glTF character drawn in the `Present` ho
 - Models with several materials or textures: only the first base-colour texture is used. Crouch/prone: the game has none, so not handled.
 - A player's own model choice is local (what you see for the other player), not sent on the wire; announcing it needs a pose packet change (protocol bump) and is not done.
 - The Cesium Man model carries the Cesium logo (a trademark, CC BY 4.0 for the model itself); whether to ship it as the default in a public release: `unknown`, the owner decides. A different default can be set in `proxy/config.h`.
+
+### Puzzle sweep: teleport to every puzzle and solve it with the mouse (2026-10-25, witness-coop branch `panel-sweep`)
+
+Goal: a way to test every puzzle automatically (a bot teleports with the dev menu, draws the solution through the in-process mouse, and the game's own solved flag is the verdict) and a way for a tester to do the same for one puzzle. No panel is marked solved by a dev action in this sweep.
+
+#### Observations
+
+- The world has 594 placed panels (a fresh game, build 11370412). 23 have no graph at all (nodes 0: dummy or hidden panels, mostly below ground), 96 plain-looking grids and mazes carry a stored solution line, 165 are plain mazes/lines, 309 carry cell decorations; 56 have a mirror map (symmetry).
+- **Stored solutions.** 97 panels have a node list at panel `+0x454` (length) and `+0x458` (nodes) from the first frame of a new game (the 96 undecorated ones are the grids and mazes whose rule is not in the cell decorations). A shortest path to the end is rejected on them (state `+0x280` goes 0 to 2); drawing the stored line is accepted (state 1, solved flags set). Panels `0x139` and `0x198b5` were checked both ways. A drawn line, accepted or not, did not change the stored sequence on any panel compared (0 of 594).
+- **Panel state `+0x280`:** 0 idle, 3 line drawn and not finished, 1 solved, 2 finished and rejected. The finishing click on a line that is not at the end also ends at 2.
+- **Teleport.** The dev menu's old teleport (player dropped 8 m above the panel, 12 frames of position writes) put the player back at the spawn point for the far panels. Cause (measured): the game snaps the player to the ground under it once per frame, to one fixed low level where no collision is loaded, so a released player ended below the island. A new `hover` writes the player's position in a spin loop for 2 s after the menu teleport; after that the player stood still at ground + 1.69 m (`0x139`: camera 20.88, panel 20.885) for the whole 4 s watched. A once-per-millisecond write left a visible share of frames underground (camera height jittered by up to 0.5 m); a write per frame was worse.
+- **Pixel size.** How big a panel unit looks is not a function of anything read from the panel: pixels per unit x distance was 585 on `0x64`, `0x182` and `0x139`, 666 assumed for `0x293`/`0x295` (worked), 745 about right on `0x2c4`. The start circle is found by trying sizes in 3.5 % steps (the cursor starts at the screen centre; a click that misses the circle does nothing). The panel centre is also shifted on the screen by (height of the eye below the panel, sideways offset) x 1033 / distance pixels.
+- **Mouse gain.** With a steady camera one edge costs the same number of counts on both axes: 96 counts for a 0.172-unit edge on `0x139` (557 counts per unit), about 806 per unit on `0x293`/`0x295`: so not the free cursor's 2 counts per pixel, and it differs per panel. The traced-node count at `+0x228` steps up exactly when the line arrives at a node (1 at the start node, i + 1 at path[i]); the end stub does not add to it.
+- **Camera jitter was the reason earlier drawings ran away** (one vertical count moved the line a whole edge): with the camera height bobbing the cursor's position on the panel moved by tens of pixels.
+- A cursor pushed past the panel's edge while the line is at the end stub made the finish fail; the stub near the top of the panel leaves 11 px.
+- Results of the drawing bot (real game, panel by panel, as of this note): tutorial `0x64`, `0x182`, mazes `0x293`, `0x295`, `0x86`, stored-solution grids `0x139`, `0x143`, `0x198b5`, and others; see `sweep_results` in the run folder for the full list of the current run. A stored line for `0x2c4` (a pill-shaped circuit with short chamfered edges) was not reproduced on the first tries: the line took a different branch at a node (the traced count cannot see that).
+
+#### Derived
+
+- `tools/win/wdraw.py` solves panels whose line is made of long axis-aligned edges and whose rule the solver knows; the path the game accepted is always one the solver (or the stored data) gave.
+- psolve (`tools/psolve`, C++, T0 tests) models dots (black, blue, yellow), gaps (missing edges), squares, stars, triangles, polyominoes (rotations, negatives), erasers and symmetry (mirror line from `+0x438`) on grids. It finds a line for 283 of the 329 decorated panels and 45 of 47 mirror panels in its own model; whether the model is right is decided by the game, panel by panel.
+
+#### Unknowns
+
+- Whether the stored line is the only accepted line on those panels: the rule behind them is `unknown` (nothing in the decoration, region or style fields explains why a shortest path fails).
+- The layout of cell decorations (row 0 at the bottom, value = shape << 16 | type | colour) is inferred from the values and checked only through accepted lines.
+- Panels with a 90-degree turn between short edges (`0x2c4`): `unknown` how to steer reliably.
+- The 23 panels without a graph: `unknown` what they are.
