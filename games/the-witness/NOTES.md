@@ -430,3 +430,18 @@ Goal: a way to test every puzzle automatically (a bot teleports with the dev men
 - The layout of cell decorations (row 0 at the bottom, value = shape << 16 | type | colour) is inferred from the values and checked only through accepted lines.
 - Panels with a 90-degree turn between short edges (`0x2c4`): `unknown` how to steer reliably.
 - The 23 panels without a graph: `unknown` what they are.
+
+#### Update (same day, later): what the sweep found about the panels it could not draw on
+
+Observations:
+- **Power.** A panel whose `+0x2a4` is 0 cannot be started (no click anywhere on its face starts a line); solving something upstream sets it. 297 of the 594 panels start with it 0. Whether a start works is judged by the traced count (`+0x228` >= 1) or panel state 3 (`+0x280`); state 2 is the game's "wrong".
+- **Floor puzzles.** Four panels (`0x1be9`, `0x1cd3`, `0x1d3f`, `0x33ea`, in the Keep) are not drawn with the mouse: each has one pressure plate per node and one per edge of its graph (66 plates for 25 nodes and 41 edges on `0x1cd3`). A plate has its panel's engine id at `+0xe4`, `1` (edge) or `0` (node) at `+0xe8`, and the node, or the two nodes of the edge, at `+0xf0` / `+0xf4`. Holding the player over the 34 plates of a rules-solver path, in order, was accepted by the game on `0x1cd3` (`tools/win/wwalk.py`). A click on the face of such a panel did nothing anywhere on it (10 px raster over `0x1be9`).
+- **Panel groups.** `+0x2d8` / `+0x2dc` of a panel is the same for the panels of one area (137 groups); on some areas almost no panel could be tried because their power does not come from a panel or cable the sweep can reach: plates, `Multipanel`, `Gauge`, lasers and `Group` entities point at them.
+- **Rule solver accuracy.** Of the lines drawn from `tools/psolve` the game accepted all but 2 (state 2) at the time of writing.
+- **Start circle.** Where the start circle is on the screen needed a search over the panel's size in metres (0.5 to 1.2), a vertical shift, an aspect factor (1.4 on some panels) and mirrored axes (`0x1cd3`-like panels were shown turned 180 degrees); panels of one kind (scale, grid size, symmetry) are found at the same place, which the bot remembers.
+- A game died on teleports to places with nothing to stand on (about 6 times in 4 hours); `sweep.py` notices and restarts it, and it gets the solved panels back from its partner.
+
+Unknowns:
+- How the panels in the dark rooms and the 0x20 / 0x21 group are meant to be powered in play (they were solved only after the dev menu powered them, for diagnosis, not counted).
+- What `Multipanel`, `Gauge`, lasers and `Group` entities need from the player.
+- Whether the Keep's plates also have a time limit.
