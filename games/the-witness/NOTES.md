@@ -376,3 +376,29 @@ Implementation: witness-coop commit `bfe1b7e`.
 ### Second panel for the T2 bot (resolved)
 
 An early attempt to script the second tutorial panel (`0x182`) stalled: with the panel's facing and the start circle unknown, four teleported views showed no puzzle screen. Reading the panel graph (positions, flags and connections at `+0x3B4..+0x3D8`, as the randomizer does) and a back-buffer screenshot of the head-on view fixed this; the second-puzzle section above (Follow-up: second tutorial puzzle) records the working bot and the door-zero bug it exposed.
+
+### Player model (2026-10-24, witness-coop branch `player-model`, commit 23baee7)
+
+Replaced the flat puppet with a skinned glTF character drawn in the `Present` hook, hidden by walls through the game's own depth buffer.
+
+#### Observations
+
+- Patching the immediate-context vtable of a dummy device (`OMSetRenderTargets`, slot 33) sees the game's own calls, the same way the swap-chain vtable patch sees `Present`. Over one frame it showed 53 calls: a 1920x1080 `R24G8_TYPELESS` depth texture with 4 samples and bind flags depth-stencil + shader-resource (the scene), a 960x540 one, two shadow-sized 16-bit ones (4096x1024, 3072x1024).
+- That scene depth texture still holds the frame's depth at `Present` time. A shader view (`R24_UNORM_X8_TYPELESS`, `Texture2DMS<float>`) can be read from the overlay's pixel shader, no copy needed (a staging copy of a multisampled depth texture fails with `E_INVALIDARG`).
+- Depth is reversed and has no far plane: stored value = `0.0597 / distance`. Measured with the player looking at panel `0x64` from three distances (the proxy `probe` command reads the depth at the screen centre): 0.03960842 at 1.508 m, 0.02382934 at 2.505 m, 0.01784265 at 3.343 m, i.e. value x distance = 0.05972, 0.05968, 0.05965 (distance = camera to panel position). Three more distances in the same run were bad samples (the teleport had not landed); they were not used.
+- `SV_Position.w` in the pixel shader was 1.0 or more at a point 6.3 m away, so it was not `1 / view depth` there. Passing the clip-space `w` from the vertex shader as a separate interpolant gave the right distance; with it the occlusion test works.
+- A player cannot be teleported behind the closed first door: the pose B sent put the figure at the door, not behind it (the game resolves the collision). The proxy therefore has a test hook (`fakepose`) that draws the peer at a chosen place.
+- Results (real games, `tools/qa.sh model`, 5 scenarios, all PASS, real saves byte-identical after each): figure 5 m ahead 27571 px (GPU occlusion query, samples passing), standing speed 0.0, walking at about 3.6 m/s measured from the received poses with the clip time advancing, idle and still again after stopping, 138589 px at 2 m in front of the closed door and 0 px with the figure 3 m behind it. Mutants: depth test off -> 16193 px behind the door (only that check fails); gait off -> clip time stays 0 (only that check fails); model off -> the six checks that need a drawn model fail.
+- T0 (`make -C proxy/model test`, also run by `make -C proxy/core test`): 229 checks on the three bundled models (skinning against the bind pose, loop, quaternion slerp, camera matrix vs the puppet's projection, placement and facing, walk state, clip choice by name) and 6 mutants killed; the sync-core fuzzer and its 10 bug twins still pass.
+
+#### Derived
+
+- Walking speed in the game is about 3 m/s (9.1 m in 3 s, measured earlier); the figure's walk cycle is played at `speed / model_speed` of its clip rate.
+- The visible-pixel count measures the depth test (4 MSAA samples averaged for the edge alpha); it does not measure colours. Lighting, textures and facing were checked by eye on screenshots only.
+
+#### Unknowns
+
+- The depth near value was measured on one camera setup (field of view 60 degrees, 16:9, 1920x1080); other resolutions or fields of view: `unknown`. Behaviour while the game is in a different render path (menus, puzzle view): `unknown`.
+- Models with several materials or textures: only the first base-colour texture is used. Crouch/prone: the game has none, so not handled.
+- A player's own model choice is local (what you see for the other player), not sent on the wire; announcing it needs a pose packet change (protocol bump) and is not done.
+- The Cesium Man model carries the Cesium logo (a trademark, CC BY 4.0 for the model itself); whether to ship it as the default in a public release: `unknown`, the owner decides. A different default can be set in `proxy/config.h`.
