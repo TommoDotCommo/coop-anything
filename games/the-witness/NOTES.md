@@ -471,3 +471,19 @@ Derived:
 
 Unknown:
 - What powers the 40 roots, and whether any of them is powered by something other than a link (the first of each chain may simply be powered from the start in the real game and need a frame near the player).
+
+## 2026-10-25 power gating explained: multipanels, and why the sweep stalls
+
+Observations:
+- Every `Multipanel` entity owns a group of panels (the panel's `+0x2bc` is the multipanel's engine id; 41 groups). In 31 of 41 groups exactly one panel (the head of the `+0x2cc` chain) is powered in a new game; in 10 groups none is.
+- 9 of those 10 multipanels have a cable aimed at them (cable `+0xcc` = multipanel id), and following the cables upstream ends at a panel (e.g. multipanel `0x6e` is fed from panel `0x79`, `0x26c` from `0x17cab`, `0x98c` from `0x56f`).
+- With edges "panel solved -> the panel its cable chain ends at", "-> every panel of the multipanel it ends at" and "-> panels whose `+0x2cc` names it", 533 of 594 panels are reachable from the 237 that start powered; 61 are not (the dark-room loop `0x7..0xa`, the `0x35xx` group, the `0x1972x` group, and a few more).
+- The 285 panels without a result in the sweep are mostly gated by a failed or unsolved upstream panel, not by an unknown power source. Ranked by how many untried panels sit behind them: `0x24` (14, a glass strip), `0x7c`, `0x17d88`, `0x21b6`, `0x290` (7), `0x5c`, `0x17e3c`, `0x17d9b`.
+- Glass strips: the depth probe at the screen centre reads what is behind the glass, so the "is the panel in view" check failed for `0x22..0x24`; with the check waived the three are solved by drawing.
+- `0x290` (4x4, stored solution) is drawn as a diamond: its grid is turned 45 degrees in the panel's plane while the quaternion is yaw-only and no rotation field was found in the first 0x700 bytes. Solved with a 45 degree roll and a panel size of 1.88 m (the search now tries it).
+
+Derived:
+- The sweep order does not need unknown triggers for most of the world; it needs the failing panels fixed in blocker order.
+
+Unknown:
+- The source of the 61 unreachable panels, and which field holds the roll of a turned grid.
