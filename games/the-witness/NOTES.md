@@ -514,3 +514,16 @@ Unknown:
 ## 2026-10-25 hand play: the panel cursor and the real mouse
 
 - With `force_active=1` (bot mode) the game's panel cursor moves about 1/3 to 1/2 pixel per mouse count while the real pointer moves 1 pixel, so the circle lags and the pointer leaves the window. `WITNESS_HUMAN=1` (no `force_active`) makes the mouse follow normally. A proxy-side fix exists too: F3 multiplies real mouse motion by `panel_mouse_gain` (default 3), bot events are not touched.
+
+## 2026-10-25 entry area: the pillar, the floor panel and the environmental puzzle (owner played, web notes agree)
+
+Observations:
+- `0xc335` is a stone pillar (6 columns round, 6 rows, triangle clues of count 1 in columns 1 and 4 of every row). Its cell array is 6 x 6 and the graph closes on itself, so the solver now treats a cell array of `gx x (gy-1)` as a cylinder (T0 mutant still to do). A line found by the solver was accepted in the game.
+- Solving the pillar lit cable `0x34d5a`, which feeds `0xc373` (floor panel, 6x6 nodes, two black dots, `+0x2c8` = that cable). `0xc373` has no outgoing link in the extracted data (target -1).
+- Solving `0xc373` normally (hitting both dots) turns its line blue and changes no flag the state dump tracks. Drawing it so the first dot is missed turns the line yellow; the yellow line is part of an environmental puzzle among the flowers around the panel, which the owner solved. That activated a section of a black obelisk (6 `Obelisk`, 135 `Obelisk_Report` entities exist; their fields are not decoded).
+
+Derived:
+- A panel can be accepted ("solved") and still need a deliberate fail to do its job; a sweep that only asks "is it solved" cannot see the environmental or obelisk effect.
+
+Unknown:
+- Which fields change when an obelisk section activates.
