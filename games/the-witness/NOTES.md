@@ -445,3 +445,15 @@ Unknowns:
 - How the panels in the dark rooms and the 0x20 / 0x21 group are meant to be powered in play (they were solved only after the dev menu powered them, for diagnosis, not counted).
 - What `Multipanel`, `Gauge`, lasers and `Group` entities need from the player.
 - Whether the Keep's plates also have a time limit.
+
+#### Update (later the same day): more sweep facts
+
+Observations:
+- **Mouse gain per direction.** On the swamp panels (`0x17dc8` and neighbours) the line needs about 2.3 to 3 counts per pixel horizontally and 8 to 12 vertically (the projection's width and height scale did not match); learning the gain per direction made `0x17dc8` solve where one number overshot. On the other panels both directions agree.
+- **Floor puzzles.** All four (`0x1cd3`, `0x1d3f`, `0x1be9`, `0x33ea`) were solved by walking. The traced count (+0x228) goes up on the EDGE plate (one per node of the path, the end stub's edge plate last); stepping on a node plate alone does not count. An edge without a plate (on `0x1be9`, edge 9-14) cannot be walked, whatever the graph says: the rule solver is run on the edges that have a plate (and marker nodes on an edge are skipped).
+- **Power chains.** 55 panels got power during the sweep: 28 from a panel, 25 from a cable (the panel's `+0x2c8` names the source, as an engine id). 65 panels that are unpowered at the start have no panel or cable that powers them.
+- **Negative result.** Teleporting the player through every `Touch_Collision` volume (489), `Collision_Path`, `Audio_Recording` and `Obelisk_Report` (0.25 s each, held over it) did not change the number of powered panels (237 before and after).
+- Pair 1 of the sweep finished everything it could power (63 panels waiting for power that nothing it can solve provides); 188 of 594 panels were solved at this point.
+
+Unknowns:
+- What powers the 65 root panels (the dark-room panels `0x6`..`0xa`, `0x7`, `0x65`, `0x84`, `0x8d`, ...): multipanels, lasers and `Group` entities reference them; how a player triggers that is `unknown`.
