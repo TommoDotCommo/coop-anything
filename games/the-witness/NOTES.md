@@ -540,3 +540,16 @@ Derived:
 
 Unknown:
 - Where the second exit of `0xa3b5` leads.
+
+## 2026-10-25 panels with no graph are not always panels to draw on
+
+Observations (owner played):
+- `0x1c343` / `0x1c344` (powered, no graph) are rotating reflectors with a floor controller; the owner rotated one. No laser reaches it in this state.
+- `0x33d4` (8x8, extra start circles in the middle, black and white squares, odd dot flags `0x240020` / `0x440020`) was solved by hand, opened door `0x33d0`; `0x3481` (a 2-node straight line) then opened door `0x3506` and a box with a paper of connected hexagons.
+- Per fan sources (not verified in game): 11 lasers, one per region, aimed at the mountain; the Desert laser must be reflected up to the mountain from the Town; environmental puzzles belong to obelisks; Discarded Panels are triangle collectibles.
+
+Derived:
+- A sweep needs a type for "not a line puzzle" (reflector, screen, pillar, control with bars); `no graph` should be reported as that type, not as a failure.
+
+Unknown:
+- What the 23 blank-screen panels (e.g. `0x51f`) are.
