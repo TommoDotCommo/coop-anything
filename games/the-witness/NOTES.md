@@ -527,3 +527,16 @@ Derived:
 
 Unknown:
 - Which fields change when an obelisk section activates.
+
+## 2026-10-25 entry area: bars, two exits, two starts, effects the flags do not show
+
+Observations (owner played, state dumped before and after):
+- `0x3629` (the gate control with three blocking bars) is unblocked by solving `0x293`, `0xa3b2` and `0xa3b5`. After those, `0x295` and `0x2c2` became powered and were solved, three doors opened (`0x288e8`, `0x288f3`, `0x28942`) and cables `0x349`, `0x3c`, `0x3f`, `0x45c`, `0x51` lit. The links from those panels to the bars are not in the extracted cable data.
+- `0xa3b5` has two end nodes (103 and 104); the owner says the second one runs to a place that cannot be seen from the panel. `0xa3b2` has two start nodes (0 and 6).
+- `0x3505` (triangle counts 1, 2, 3 in the first column, node flags unlike normal panels) is a panel whose drawn path turns into an environmental puzzle on a building; its own solved flag stays off after the owner completed the environmental puzzle. `0xc373`'s solved flag goes off after the deliberate fail.
+
+Derived:
+- "Solved" in the panel flags is not the goal for panels with several exits, several starts, or an environmental result: a sweep has to try every start and every exit and have the result checked some other way.
+
+Unknown:
+- Where the second exit of `0xa3b5` leads.
