@@ -553,3 +553,13 @@ Derived:
 
 Unknown:
 - What the 23 blank-screen panels (e.g. `0x51f`) are.
+
+## 2026-10-25 theater doors, hole cells, and what the "rule" flag was
+
+Observations (owner played the left door; web notes place these as the exit doors of the underground A/V room):
+- `0xa168` (left, eraser cells at the bottom, black and white squares) opened door `0xa16d` when solved; the owner walked through a tunnel to the outside. `0x33ab2` (right, four orange corner polyominoes, four black squares) is the other door.
+- Both have two cells of decoration type `0xa` (`0xa02`) in the bottom row either side of the start: they are not there (no region, no area). The panel summary's word "rule" is that type. With them counted as ordinary cells the solver found no line for `0x33ab2`; with them removed it finds one (`U1 L1 U1 R2 D1 R1 U4 L1 D1 L2 U1 R1 U1`, from the start node; not yet tried in the game).
+- The two small icons at the bottom of `0xa168` are erasers (cells 1 and 2 of the bottom row).
+
+Derived:
+- T0 test `test_hole_cells` and mutant `hole` pin the rule down.
