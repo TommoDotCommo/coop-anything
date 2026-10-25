@@ -487,3 +487,12 @@ Derived:
 
 Unknown:
 - The source of the 61 unreachable panels, and which field holds the roll of a turned grid.
+
+## 2026-10-25 sound dots, swamp end stubs, unsupported classes
+
+Observations:
+- Eight jungle panels carry node flags `0x2000` / `0x4000` / `0x8000` (sound dots of pitch 1 / 2 / 3) plus the dot flag `0x20`. Seven of them hold the panel's own sequence at `+0x460` (count) / `+0x468` (pitches). A line that meets the sound dots in that order is accepted: `0xafb` (7x7, symmetry, sequence 2,3,2,1) and `0x34e3` (no sequence stored: all four dots visited, any order) are solved by drawing.
+- `psolve` models the order (`dseq`); T0 test `test_sound_dots` plus mutant `pitch` (the order check off must fail a test).
+- Swamp-style panels with a mouse gain that differs per axis finished with state 0 because the end stub was pushed with the gain of the last edge. With the stub's own axis gain `0x17d9b`, `0x17d88`, `0x17e3c` are solved.
+- 23 panels have no graph at all (0 nodes), e.g. `0x51f`: a black screen in a cave. `unknown` what fills them.
+- `0x383a` (6x4 node grid, 145 nodes, cell array 6 x 3) teleports to a dark cave with a pillar and an orange slider rather than a drawable grid; not solved, `unknown` how it is operated.
