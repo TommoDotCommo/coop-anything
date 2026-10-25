@@ -496,3 +496,21 @@ Observations:
 - Swamp-style panels with a mouse gain that differs per axis finished with state 0 because the end stub was pushed with the gain of the last edge. With the stub's own axis gain `0x17d9b`, `0x17d88`, `0x17e3c` are solved.
 - 23 panels have no graph at all (0 nodes), e.g. `0x51f`: a black screen in a cave. `unknown` what fills them.
 - `0x383a` (6x4 node grid, 145 nodes, cell array 6 x 3) teleports to a dark cave with a pillar and an orange slider rather than a drawable grid; not solved, `unknown` how it is operated.
+
+## 2026-10-25 swamp rows: how the "root" panels get their power (owner walked it)
+
+Observations (one game, a person playing with the real mouse, the bot drawing where asked):
+- The first dark row (`0x7`..`0xa`, multipanel `0x94`) has no panel or cable in the extracted links. Solving the row `0x982 -> 0x97f -> 0x98f -> 0x990` lit cable `0xbfc` (to multipanel `0x9aa`), opened door `0x184b7` and powered `0x999`. Solving `0x999 -> 0x99d -> 0x9a0 -> 0x9a1` lit cable `0xbc9` (to door `0x18507`), opened that door and two more cables whose target field reads -1 (`0x18458`, `0x33863`), and powered `0x7` (the head of the dark row). `0x8`..`0xa` stay unpowered until `0x7` is solved.
+- A platform control panel (6x6, polyominoes, `0x181f5`) turns the platform it stands on when the yellow shape lies in the same region as the two coloured marks for the directions to turn between (owner's finding). Solving it changed no panel, door or cable flag.
+- A row whose first panel is "unpowered, no source" is therefore not a root: its power comes from a lit cable whose target is not in the extracted `+0xcc` links, after an earlier row is solved.
+
+Derived:
+- The sweep's root list (40 panels) is a list of rows whose feeding cable has target -1 in the extract; the cables that light when the upstream row is solved name them. Next step: for every cable with target -1, record when it lights during the sweep.
+
+Unknown:
+- The field that ties cables `0x18458` and `0x33863` to multipanel `0x94`.
+- Teleporting to a panel can land on a level that cannot be left (stair pit, lower walkway); the player has to be placed from the panel's own platform.
+
+## 2026-10-25 hand play: the panel cursor and the real mouse
+
+- With `force_active=1` (bot mode) the game's panel cursor moves about 1/3 to 1/2 pixel per mouse count while the real pointer moves 1 pixel, so the circle lags and the pointer leaves the window. `WITNESS_HUMAN=1` (no `force_active`) makes the mouse follow normally. A proxy-side fix exists too: F3 multiplies real mouse motion by `panel_mouse_gain` (default 3), bot events are not touched.
