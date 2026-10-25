@@ -457,3 +457,17 @@ Observations:
 
 Unknowns:
 - What powers the 65 root panels (the dark-room panels `0x6`..`0xa`, `0x7`, `0x65`, `0x84`, `0x8d`, ...): multipanels, lasers and `Group` entities reference them; how a player triggers that is `unknown`.
+
+## 2026-10-25 panel power links: `+0x2cc` is the static predecessor
+
+Observations (live scan of all 594 panels, one game, nothing solved by forcing):
+- `+0x2cc` holds an engine id on 231 panels. On a powered panel `+0x2c8` equals `+0x2cc`; on an unpowered one `+0x2c8` is 0 and `+0x2cc` still names a panel (e.g. `0x4` -> `0x2`, `0x5` -> `0x4`, `0x6d` -> `0x65`, `0x26e` -> `0x26d`).
+- 221 of the 357 panels that start unpowered have a `+0x2cc`, 102 have a cable aimed at them.
+- After counting both, 40 unpowered panels have neither (earlier count: 65 using `+0x2c8` only): `0x7 0x65 0x7c 0x84 0x8d 0x26d 0x390 0x3b2 0x88e 0x999 0xc92 0x32f7 0x3317 0x3545 0x3549 0x354e 0x354f 0x3552 0x3553 0x356b 0x360e 0x383f 0x3859 0x9e56 0x9e5a 0x9f01 0x9f8e 0x9fda 0xa036 0xa049 0x19797 0x28ad9 0x335ac 0x3369d 0x33961 0x339bb 0x34c7f 0x3d9a8-0x3d9aa` (a few of these are named as a cable's target, so the list over-counts; see derived).
+- A scan of the first 0x600 bytes of every entity for the ids of these panels finds `Marker` entities pointing at `0x3545..0x3553`, `0x3b2`, `0x3317`, `0x360e`, `Occluder` entities at `0x390`, a `Landing_Signal` at `0x9eff`; nothing points at `0x7`, `0x65`, `0x7c`, `0x84`, `0x8d`, `0x26d` except small-integer collisions.
+
+Derived:
+- A panel becomes powered when the panel in its `+0x2cc` is solved (the chain `0x1b..0x21`, `0x5d..0x61`).
+
+Unknown:
+- What powers the 40 roots, and whether any of them is powered by something other than a link (the first of each chain may simply be powered from the start in the real game and need a frame near the player).
